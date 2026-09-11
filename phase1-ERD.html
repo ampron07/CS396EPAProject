@@ -1,0 +1,119 @@
+<style>
+#erd svg.erDiagram .divider path { stroke-opacity: 0.5; }
+#erd svg.erDiagram .row-rect-odd path,
+#erd svg.erDiagram .row-rect-odd rect { stroke: none !important; fill: #f4f3ef !important; }
+#erd svg.erDiagram .row-rect-even path,
+#erd svg.erDiagram .row-rect-even rect { stroke: none !important; fill: #ffffff !important; }
+#erd svg.erDiagram .entityLabel { font-weight: 500 !important; fill: #000000 !important; }
+#erd svg.erDiagram .relationshipLabel { font-weight: 400 !important; fill: #000000 !important; }
+#erd svg.erDiagram text { fill: #000000 !important; }
+#erd svg.erDiagram .er.entityBox { fill: #ffffff !important; stroke: #444441 !important; }
+#erd svg.erDiagram .er.attributeBoxOdd { fill: #f4f3ef !important; }
+#erd svg.erDiagram .er.attributeBoxEven { fill: #ffffff !important; }
+</style>
+<div id="erd"></div>
+<script type="module">
+import mermaid from 'https://esm.sh/mermaid@11/dist/mermaid.esm.min.mjs';
+await document.fonts.ready;
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'base',
+  fontFamily: '"anthropic-sans", sans-serif',
+  themeVariables: {
+    darkMode: false,
+    fontSize: '14px',
+    fontFamily: '"anthropic-sans", sans-serif',
+    lineColor: '#73726c',
+    textColor: '#000000',
+    primaryTextColor: '#000000',
+    primaryBorderColor: '#73726c',
+    primaryColor: '#ffffff',
+    secondaryColor: '#f4f3ef',
+    tertiaryColor: '#ffffff',
+    nodeTextColor: '#000000'
+  },
+  er: {
+    diagramPadding: 30,
+    entityPadding: 18,
+    minEntityWidth: 190,
+    minEntityHeight: 90,
+    layoutDirection: 'TB',
+    useMaxWidth: false
+  }
+});
+const { svg } = await mermaid.render('erd-svg', `erDiagram
+  DATASET ||--o{ ANNUAL_RECORD : "produces"
+  FACILITY ||--o{ UNIT : "operates"
+  UNIT ||--o{ ANNUAL_RECORD : "reports emissions for"
+
+  DATASET {
+    int dataset_id PK "unique dataset identifier"
+    string dataset_name "human readable label"
+    string data_source "CAMPD API, bulk file, or manual upload"
+    int reporting_year "year this batch covers"
+    date retrieval_date "when it was pulled or uploaded"
+    string original_filename "source file name, if any"
+    int num_raw_records "rows before validation"
+    int num_accepted_records "rows actually stored"
+    string notes "free text on data quality"
+  }
+  FACILITY {
+    int facility_id PK "EPA facility ID"
+    string facility_name
+    string state "2-letter code"
+    string county
+    float latitude
+    float longitude
+    string source_category "e.g. electric utility"
+  }
+  UNIT {
+    int unit_key PK "internal surrogate key"
+    int facility_id FK "links to FACILITY"
+    string unit_id "EPA unit ID"
+    string unit_type "boiler, turbine, etc."
+    string primary_fuel
+    string secondary_fuel
+    date operating_date
+    date retirement_date "null if still active"
+  }
+  ANNUAL_RECORD {
+    int id PK "surrogate key"
+    int unit_key FK "links to UNIT"
+    int dataset_id FK "links to DATASET, for provenance"
+    int reporting_year UK "unique with unit_key"
+    float operating_time "hours"
+    float gross_load "MWh"
+    float steam_load
+    float heat_input "MMBtu"
+    float co2_mass "short tons"
+    float so2_mass "short tons"
+    float nox_mass "short tons"
+    string so2_control "control technology code"
+    string nox_control
+    string pm_control
+    string program_code
+  }`);
+document.getElementById('erd').innerHTML = svg;
+
+document.querySelectorAll('#erd svg.erDiagram .node').forEach(node => {
+  const firstPath = node.querySelector('path[d]');
+  if (!firstPath) return;
+  const d = firstPath.getAttribute('d');
+  const nums = d.match(/-?[\d.]+/g)?.map(Number);
+  if (!nums || nums.length < 8) return;
+  const xs = [nums[0], nums[2], nums[4], nums[6]];
+  const ys = [nums[1], nums[3], nums[5], nums[7]];
+  const x = Math.min(...xs), y = Math.min(...ys);
+  const w = Math.max(...xs) - x, h = Math.max(...ys) - y;
+  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  rect.setAttribute('x', x); rect.setAttribute('y', y);
+  rect.setAttribute('width', w); rect.setAttribute('height', h);
+  rect.setAttribute('rx', '8');
+  for (const a of ['fill', 'stroke', 'stroke-width', 'class', 'style']) {
+    if (firstPath.hasAttribute(a)) rect.setAttribute(a, firstPath.getAttribute(a));
+  }
+  firstPath.replaceWith(rect);
+});
+
+document.querySelectorAll('#erd svg.erDiagram text').forEach(t => t.setAttribute('fill', '#000000'));
+</script>
