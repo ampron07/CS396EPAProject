@@ -15,7 +15,7 @@ params = {
     "api_key": api_key,
     "year": 2023,
     "page": 1,
-    "perPage": 10
+    "perPage": 50
 }
 
 response = requests.get(url, params=params)
