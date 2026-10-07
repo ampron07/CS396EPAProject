@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>epaData – Daily Emissions</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+    <h1>epaData</h1>
+    <h2>Daily Emissions Explorer</h2>
+    <p><a href="{{ url_for('main.home') }}">Annual data</a> | EPA CAMPD Daily Emissions (unit level)</p>
+
+    <form method="GET" action="{{ url_for('main.daily') }}">
+        <label for="facility">Facility:</label>
+        <input type="text" id="facility" name="facility" value="{{ facility }}">
+
+        <label for="state">State:</label>
+        <input type="text" id="state" name="state" value="{{ state }}" size="3">
+
+        <label for="year">Year:</label>
+        <input type="number" id="year" name="year" value="{{ year or '' }}">
+
+        <br><br>
+
+        <label for="quarter">Quarter:</label>
+        <select id="quarter" name="quarter">
+            <option value="">Any</option>
+            {% for q in range(1, 5) %}
+            <option value="{{ q }}" {% if quarter == q %}selected{% endif %}>Q{{ q }}</option>
+            {% endfor %}
+        </select>
+
+        {% set month_names = ["January", "February", "March", "April", "May", "June", "July",
+                              "August", "September", "October", "November", "December"] %}
+        <label for="month">Month:</label>
+        <select id="month" name="month">
+            <option value="">Any</option>
+            {% for m in range(1, 13) %}
+            <option value="{{ m }}" {% if month == m %}selected{% endif %}>{{ month_names[m - 1] }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="day">Day:</label>
+        <input type="date" id="day" name="day" value="{{ day }}">
+
+        <label for="view">Show totals per:</label>
+        <select id="view" name="view">
+            {% for v in ["day", "month", "quarter", "year"] %}
+            <option value="{{ v }}" {% if view == v %}selected{% endif %}>{{ v|capitalize }}</option>
+            {% endfor %}
+        </select>
+
+        <button type="submit">Search</button>
+        <a href="{{ url_for('main.daily') }}">Clear</a>
+    </form>
+
+    <p>{{ "{:,}".format(total) }} result(s) — page {{ page }} of {{ pages }}</p>
+
+    <table>
+        <tr>
+            <th>{{ view|capitalize }}</th>
+            <th>Facility</th>
+            <th>State</th>
+            <th>Unit</th>
+            <th>Days</th>
+            <th>Operating Time (hr)</th>
+            <th>Gross Load (MWh)</th>
+            <th>CO₂ (short tons)</th>
+            <th>SO₂ (short tons)</th>
+            <th>NOx (short tons)</th>
+        </tr>
+        {% for r in rows %}
+        <tr>
+            <td>
+                {% if view == "day" %}{{ r.date }}
+                {% elif view == "month" %}{{ month_names[r.month - 1] }} {{ r.year }}
+                {% elif view == "quarter" %}Q{{ r.quarter }} {{ r.year }}
+                {% else %}{{ r.year }}{% endif %}
+            </td>
+            <td>{{ r.facility_name }}</td>
+            <td>{{ r.state_code }}</td>
+            <td>{{ r.unit_id }}</td>
+            <td>{{ r.days }}</td>
+            <td>{{ "{:,.1f}".format(r.operating_time or 0) }}</td>
+            <td>{{ "{:,.0f}".format(r.gross_load) if r.gross_load is not none else "—" }}</td>
+            <td>{{ "{:,.1f}".format(r.co2_mass) if r.co2_mass is not none else "—" }}</td>
+            <td>{{ "{:,.3f}".format(r.so2_mass) if r.so2_mass is not none else "—" }}</td>
+            <td>{{ "{:,.2f}".format(r.nox_mass) if r.nox_mass is not none else "—" }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <p>
+        {% if page > 1 %}
+        <a href="{{ url_for('main.daily', **dict(request.args.to_dict(), page=page - 1)) }}">&larr; Previous</a>
+        {% endif %}
+        {% if page < pages %}
+        <a href="{{ url_for('main.daily', **dict(request.args.to_dict(), page=page + 1)) }}">Next &rarr;</a>
+        {% endif %}
+    </p>
+
+</body>
+</html>
