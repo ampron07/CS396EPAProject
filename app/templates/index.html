@@ -1,52 +1,442 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
+
     <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
     <title>epaData</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+
 </head>
+
 <body>
 
     <h1>epaData</h1>
-    <h2>EPA Data Explorer</h2>
-    <p>EPA CAMPD Annual Emissions Data | <a href="{{ url_for('main.daily') }}">Daily / monthly / quarterly data</a></p>
 
-    <form method="GET" action="/">
-        <label for="facility">Facility:</label>
-        <input type="text" id="facility" name="facility" value="{{ facility }}">
+    <h2>Annual EPA Emissions Data</h2>
 
-        <label for="state">State:</label>
-        <input type="text" id="state" name="state" value="{{ state }}">
+    <p>
 
-        <label for="year">Year:</label>
-        <input type="number" id="year" name="year" value="{{ year }}">
+        <a href="{{ url_for('main.daily') }}">
+            Daily Data
+        </a>
 
-        <button type="submit">Search</button>
-        <a href="/">Clear</a>
+        |
+
+        <a href="{{ url_for('main.upload') }}">
+            Upload Data
+        </a>
+
+    </p>
+
+    <form method="get" action="{{ url_for('main.index') }}">
+
+        <label for="facility">
+            Facility:
+        </label>
+
+        <input
+            type="text"
+            id="facility"
+            name="facility"
+            value="{{ facility }}"
+            placeholder="Facility name"
+        >
+
+        <div class="state-dropdown">
+
+            <details>
+
+                <summary>
+
+                    {% if states %}
+
+                        {{ states|length }} state(s) selected
+
+                    {% else %}
+
+                        Select states
+
+                    {% endif %}
+
+                </summary>
+
+                <div class="state-options">
+
+                    {% for s in available_states %}
+
+                        <label class="state-option">
+
+                            <input
+                                type="checkbox"
+                                name="state"
+                                value="{{ s }}"
+                                {% if s in states %}checked{% endif %}
+                            >
+
+                            {{ s }}
+
+                        </label>
+
+                    {% endfor %}
+
+                </div>
+
+            </details>
+
+        </div>
+
+        <label for="year">
+            Year:
+        </label>
+
+        <input
+            type="number"
+            id="year"
+            name="year"
+            value="{{ year }}"
+            placeholder="2025"
+            min="1900"
+            max="2100"
+        >
+
+        <label for="fuel">
+            Primary Fuel:
+        </label>
+
+        <select id="fuel" name="fuel">
+
+            <option value="">
+                All
+            </option>
+
+            {% for f in available_fuels %}
+
+                <option
+                    value="{{ f }}"
+                    {% if fuel == f %}selected{% endif %}
+                >
+                    {{ f }}
+                </option>
+
+            {% endfor %}
+
+        </select>
+
+        <label for="co2_min">
+            Minimum CO₂:
+        </label>
+
+        <input
+            type="number"
+            id="co2_min"
+            name="co2_min"
+            value="{{ co2_min }}"
+            placeholder="e.g. 500000"
+            step="any"
+        >
+
+        <br>
+
+        <label for="description">
+            Describe your search:
+        </label>
+
+        <input
+            type="text"
+            id="description"
+            name="description"
+            value="{{ description }}"
+            placeholder="e.g. Find coal units in Kentucky in 2025"
+            size="55"
+        >
+
+        <button type="submit">
+            Search
+        </button>
+
+        <a href="{{ url_for('main.index') }}">
+            Clear
+        </a>
+
     </form>
 
-    <table>
-        <tr>
-            <th>Facility</th>
-            <th>State</th>
-            <th>Unit</th>
-            <th>Year</th>
-            <th>CO₂ Mass</th>
-            <th>NOx Mass</th>
-            <th>SO₂ Mass</th>
-        </tr>
-        {% for record in records %}
-        <tr>
-            <td>{{ record.facility_name }}</td>
-            <td>{{ record.state_code }}</td>
-            <td>{{ record.unit_id }}</td>
-            <td>{{ record.year }}</td>
-            <td>{{ record.co2_mass }}</td>
-            <td>{{ record.nox_mass }}</td>
-            <td>{{ record.so2_mass }}</td>
-        </tr>
-        {% endfor %}
-    </table>
+    <p>
+        Found {{ total }} result(s).
+    </p>
+
+    {% if total > 0 %}
+
+        <p>
+
+            <a
+                href="{{ url_for(
+                    'main.download_annual',
+                    facility=facility,
+                    state=states,
+                    year=year,
+                    fuel=fuel,
+                    co2_min=co2_min,
+                    description=description
+                ) }}"
+            >
+                Download Results as CSV
+            </a>
+
+        </p>
+
+        <p>
+            Sort by:
+        </p>
+
+        <div class="sort-links">
+
+            <a
+                href="{{ url_for(
+                    'main.index',
+                    facility=facility,
+                    state=states,
+                    year=year,
+                    fuel=fuel,
+                    co2_min=co2_min,
+                    description=description,
+                    sort='year',
+                    direction='desc'
+                ) }}"
+            >
+                Year ↓
+            </a>
+
+            |
+
+            <a
+                href="{{ url_for(
+                    'main.index',
+                    facility=facility,
+                    state=states,
+                    year=year,
+                    fuel=fuel,
+                    co2_min=co2_min,
+                    description=description,
+                    sort='facility',
+                    direction='asc'
+                ) }}"
+            >
+                Facility A-Z
+            </a>
+
+            |
+
+            <a
+                href="{{ url_for(
+                    'main.index',
+                    facility=facility,
+                    state=states,
+                    year=year,
+                    fuel=fuel,
+                    co2_min=co2_min,
+                    description=description,
+                    sort='state',
+                    direction='asc'
+                ) }}"
+            >
+                State A-Z
+            </a>
+
+            |
+
+            <a
+                href="{{ url_for(
+                    'main.index',
+                    facility=facility,
+                    state=states,
+                    year=year,
+                    fuel=fuel,
+                    co2_min=co2_min,
+                    description=description,
+                    sort='co2',
+                    direction='desc'
+                ) }}"
+            >
+                CO₂ ↓
+            </a>
+
+            |
+
+            <a
+                href="{{ url_for(
+                    'main.index',
+                    facility=facility,
+                    state=states,
+                    year=year,
+                    fuel=fuel,
+                    co2_min=co2_min,
+                    description=description,
+                    sort='nox',
+                    direction='desc'
+                ) }}"
+            >
+                NOx ↓
+            </a>
+
+            |
+
+            <a
+                href="{{ url_for(
+                    'main.index',
+                    facility=facility,
+                    state=states,
+                    year=year,
+                    fuel=fuel,
+                    co2_min=co2_min,
+                    description=description,
+                    sort='so2',
+                    direction='desc'
+                ) }}"
+            >
+                SO₂ ↓
+            </a>
+
+        </div>
+
+        <table>
+
+            <thead>
+
+                <tr>
+
+                    <th>State</th>
+                    <th>Facility</th>
+                    <th>Unit</th>
+                    <th>Year</th>
+                    <th>Primary Fuel</th>
+                    <th>CO₂ Mass</th>
+                    <th>NOx Mass</th>
+                    <th>SO₂ Mass</th>
+
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+                {% for row in rows %}
+
+                    <tr>
+
+                        <td>
+                            {{ row.state_code }}
+                        </td>
+
+                        <td>
+                            {{ row.facility_name }}
+                        </td>
+
+                        <td>
+                            {{ row.unit_id }}
+                        </td>
+
+                        <td>
+                            {{ row.year }}
+                        </td>
+
+                        <td>
+                            {{ row.primary_fuel }}
+                        </td>
+
+                        <td>
+                            {{ "%.2f"|format(row.co2_mass or 0) }}
+                        </td>
+
+                        <td>
+                            {{ "%.2f"|format(row.nox_mass or 0) }}
+                        </td>
+
+                        <td>
+                            {{ "%.2f"|format(row.so2_mass or 0) }}
+                        </td>
+
+                    </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+        {% if total_pages > 1 %}
+
+            <div class="pagination">
+
+                {% if page > 1 %}
+
+                    <a
+                        href="{{ url_for(
+                            'main.index',
+                            facility=facility,
+                            state=states,
+                            year=year,
+                            fuel=fuel,
+                            co2_min=co2_min,
+                            description=description,
+                            sort=sort,
+                            direction=direction,
+                            page=page - 1
+                        ) }}"
+                    >
+                        Previous
+                    </a>
+
+                {% endif %}
+
+                <span>
+                    Page {{ page }} of {{ total_pages }}
+                </span>
+
+                {% if page < total_pages %}
+
+                    <a
+                        href="{{ url_for(
+                            'main.index',
+                            facility=facility,
+                            state=states,
+                            year=year,
+                            fuel=fuel,
+                            co2_min=co2_min,
+                            description=description,
+                            sort=sort,
+                            direction=direction,
+                            page=page + 1
+                        ) }}"
+                    >
+                        Next
+                    </a>
+
+                {% endif %}
+
+            </div>
+
+        {% endif %}
+
+    {% else %}
+
+        <p>
+            No results found.
+        </p>
+
+    {% endif %}
 
 </body>
+
 </html>
+

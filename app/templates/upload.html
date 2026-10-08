@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0">
+
+<title>Upload Data - epaData</title>
+
+<link rel="stylesheet"
+      href="{{ url_for('static', filename='style.css') }}">
+
+
+</head>
+
+<body>
+
+
+<h1>epaData</h1>
+
+<h2>Upload EPA Data</h2>
+
+
+<!-- Navigation -->
+
+<p>
+
+    <a href="{{ url_for('main.index') }}">
+        Annual Data
+    </a>
+
+    |
+
+    <a href="{{ url_for('main.daily') }}">
+        Daily Data
+    </a>
+
+    |
+
+    <a href="{{ url_for('main.upload') }}">
+        Upload Data
+    </a>
+
+</p>
+
+
+<hr>
+
+{% if success %}
+    <p>
+        <strong>{{ success }}</strong>
+    </p>
+{% endif %}
+
+{% if error %}
+    <p>
+        <strong>{{ error }}</strong>
+    </p>
+{% endif %}
+
+<h3>Upload a CSV File</h3>
+
+<p>
+    Upload an EPA emissions CSV file to add records to the database.
+</p>
+
+
+<form
+    method="POST"
+    action="{{ url_for('main.upload') }}"
+    enctype="multipart/form-data"
+>
+
+    <p>
+
+        <label for="data_type">
+            Data Type:
+        </label>
+
+        <select
+            id="data_type"
+            name="data_type"
+        >
+
+            <option value="annual">
+                Annual Emissions
+            </option>
+
+            <option value="daily">
+                Daily Emissions
+            </option>
+
+        </select>
+
+    </p>
+<p>
+
+    <label for="import_mode">
+        Import Mode:
+    </label>
+
+    <select
+        id="import_mode"
+        name="import_mode"
+    >
+
+        <option value="replace">
+            Replace Existing Data
+        </option>
+
+        <option value="append">
+            Add to Existing Data
+        </option>
+
+    </select>
+
+</p>
+
+    <p>
+
+        <label for="file">
+            CSV File:
+        </label>
+
+        <input
+            type="file"
+            id="file"
+            name="file"
+            accept=".csv"
+            required
+        >
+
+    </p>
+
+
+    <button type="submit">
+        Upload Data
+    </button>
+
+</form>
+
+
+<hr>
+
+
+<p>
+    <strong>Accepted file type:</strong> CSV
+</p>
+
+<p>
+    The uploaded file will be validated before records are added
+    to the database.
+</p>
+
+
+</body>
+
+</html>

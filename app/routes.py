@@ -1,5 +1,6 @@
+
 from flask import Blueprint, render_template, request, send_file
-from sqlalchemy import func, literal
+from sqlalchemy import func
 from sqlalchemy.orm import sessionmaker
 from io import BytesIO
 import pandas as pd
@@ -13,14 +14,6 @@ main = Blueprint("main", __name__)
 Session = sessionmaker(bind=engine)
 
 PER_PAGE = 100
-
-
-PERIOD_COLUMNS = {
-    "day": [DailyRecord.date],
-    "month": [DailyRecord.year, DailyRecord.month],
-    "quarter": [DailyRecord.year, DailyRecord.quarter],
-    "year": [DailyRecord.year],
-}
 
 
 def int_or_none(value):
@@ -37,11 +30,8 @@ def float_or_none(value):
         return None
 
 
-# ---------------------------------------------------------------------------
-# Description-based search
-# ---------------------------------------------------------------------------
-
 def parse_description(description):
+
     description = description.lower()
 
     states = {
@@ -75,10 +65,13 @@ def parse_description(description):
     }
 
     for state_name, state_code in states.items():
+
         if (
             state_name in description
-            or f" {state_code.lower()} " in f" {description} "
+            or f" {state_code.lower()} "
+            in f" {description} "
         ):
+
             result["state"] = state_code
             break
 
@@ -91,1010 +84,1929 @@ def parse_description(description):
     }
 
     for keyword, fuel in fuel_keywords.items():
+
         if keyword in description:
+
             result["fuel"] = fuel
             break
 
-    year_match = re.search(r"\b(20\d{2})\b", description)
+    year_match = re.search(
+        r"\b(20\d{2})\b",
+        description
+    )
 
     if year_match:
-        result["year"] = int(year_match.group(1))
+
+        result["year"] = int(
+            year_match.group(1)
+        )
 
     if (
         "high co2" in description
         or "high carbon dioxide" in description
     ):
+
         result["co2_min"] = 500000
 
     return result
 
 
-# ---------------------------------------------------------------------------
-# Helper functions for dropdowns
-# ---------------------------------------------------------------------------
+def get_states(session, model):
 
-def get_states():
-    session = Session()
-
-    states = [
+    return [
         row[0]
-        for row in session.query(AnnualRecord.state_code)
-        .distinct()
-        .order_by(AnnualRecord.state_code)
-        .all()
-        if row[0]
+        for row in (
+            session.query(model.state_code)
+            .filter(
+                model.state_code.isnot(None)
+            )
+            .distinct()
+            .order_by(model.state_code)
+            .all()
+        )
     ]
 
-    session.close()
 
-    return states
+def get_annual_fuels(session):
 
-
-def get_annual_fuels():
-    session = Session()
-
-    fuels = [
+    return [
         row[0]
-        for row in session.query(AnnualRecord.primary_fuel)
-        .distinct()
-        .order_by(AnnualRecord.primary_fuel)
-        .all()
-        if row[0]
+        for row in (
+            session.query(
+                AnnualRecord.primary_fuel
+            )
+            .filter(
+                AnnualRecord.primary_fuel.isnot(None)
+            )
+            .distinct()
+            .order_by(
+                AnnualRecord.primary_fuel
+            )
+            .all()
+        )
     ]
 
-    session.close()
 
-    return fuels
+def get_daily_fuels(session):
 
-
-def get_daily_fuels():
-    session = Session()
-
-    fuels = [
+    return [
         row[0]
-        for row in session.query(DailyRecord.primary_fuel_type)
-        .distinct()
-        .order_by(DailyRecord.primary_fuel_type)
-        .all()
-        if row[0]
+        for row in (
+            session.query(
+                DailyRecord.primary_fuel_type
+            )
+            .filter(
+                DailyRecord.primary_fuel_type.isnot(None)
+            )
+            .distinct()
+            .order_by(
+                DailyRecord.primary_fuel_type
+            )
+            .all()
+        )
     ]
 
-    session.close()
-
-    return fuels
-
-
-# ---------------------------------------------------------------------------
-# Daily query builder
-# ---------------------------------------------------------------------------
 
 def build_daily_query(
-    facility="",
+    session,
     states=None,
+    facility="",
     year=None,
     quarter=None,
     month=None,
     day="",
     fuel="",
     co2_min=None,
-    view="day",
 ):
-    session = Session()
-
-    period_cols = PERIOD_COLUMNS[view]
-
-    grouped = view != "day"
-
-    def total_of(column):
-        if grouped:
-            return func.sum(column).label(column.key)
-
-        return column.label(column.key)
 
     query = session.query(
-        DailyRecord.state_code,
-        DailyRecord.facility_name,
-        DailyRecord.facility_id,
-        DailyRecord.unit_id,
-        *period_cols,
-        (
-            func.count()
-            if grouped
-            else literal(1)
-        ).label("days"),
-        total_of(DailyRecord.operating_time),
-        total_of(DailyRecord.gross_load),
-        total_of(DailyRecord.heat_input),
-        total_of(DailyRecord.co2_mass),
-        total_of(DailyRecord.so2_mass),
-        total_of(DailyRecord.nox_mass),
+        DailyRecord
     )
 
+    if states:
+
+        query = query.filter(
+            DailyRecord.state_code.in_(states)
+        )
+
     if facility:
+
         query = query.filter(
             DailyRecord.facility_name.ilike(
                 f"%{facility}%"
             )
         )
 
-    if states:
-        query = query.filter(
-            DailyRecord.state_code.in_(states)
-        )
-
     if year is not None:
+
         query = query.filter(
             DailyRecord.year == year
         )
 
     if quarter is not None:
+
         query = query.filter(
             DailyRecord.quarter == quarter
         )
 
     if month is not None:
+
         query = query.filter(
             DailyRecord.month == month
         )
 
     if day:
+
         query = query.filter(
             DailyRecord.date == day
         )
 
     if fuel:
+
         query = query.filter(
             DailyRecord.primary_fuel_type == fuel
         )
 
     if co2_min is not None:
+
         query = query.filter(
             DailyRecord.co2_mass >= co2_min
         )
 
-    if grouped:
-        query = query.group_by(
-            DailyRecord.facility_id,
-            DailyRecord.unit_id,
-            *period_cols,
-        )
+    return query
 
-    query = query.order_by(
-        *period_cols,
-        DailyRecord.state_code,
-        DailyRecord.facility_name,
-        DailyRecord.unit_id,
-    )
-
-    return query, session
-
-
-# ---------------------------------------------------------------------------
-# Annual data page
-# ---------------------------------------------------------------------------
 
 @main.route("/")
 def index():
+
     session = Session()
 
-    facility = request.args.get(
-        "facility",
-        ""
-    ).strip()
+    try:
 
-    description = request.args.get(
-        "description",
-        ""
-    ).strip()
-
-    states = request.args.getlist("state")
-
-    if not states:
-        single_state = request.args.get(
-            "state",
+        facility = request.args.get(
+            "facility",
             ""
-        ).strip().upper()
+        ).strip()
 
-        if single_state:
-            states = [single_state]
-
-    year = int_or_none(
-        request.args.get("year")
-    )
-
-    fuel = request.args.get(
-        "fuel",
-        ""
-    ).strip()
-
-    co2_min = float_or_none(
-        request.args.get("co2_min")
-    )
-
-    # Apply description-based search.
-    if description:
-        parsed = parse_description(
-            description
+        states = request.args.getlist(
+            "state"
         )
 
-        if parsed["state"]:
-            states = [parsed["state"]]
+        year = int_or_none(
+            request.args.get("year")
+        )
 
-        if parsed["fuel"]:
-            fuel = parsed["fuel"]
+        fuel = request.args.get(
+            "fuel",
+            ""
+        ).strip()
 
-        if parsed["year"]:
-            year = parsed["year"]
+        co2_min = float_or_none(
+            request.args.get("co2_min")
+        )
 
-        if parsed["co2_min"] is not None:
-            co2_min = parsed["co2_min"]
+        description = request.args.get(
+            "description",
+            ""
+        ).strip()
 
-    query = session.query(
-        AnnualRecord
-    )
+        page = int_or_none(
+            request.args.get("page")
+        ) or 1
 
-    if facility:
-        query = query.filter(
-            AnnualRecord.facility_name.ilike(
-                f"%{facility}%"
+        sort = request.args.get(
+            "sort",
+            "year"
+        )
+
+        direction = request.args.get(
+            "direction",
+            "desc"
+        )
+
+        if description:
+
+            parsed = parse_description(
+                description
             )
+
+            if parsed["state"]:
+
+                states = [
+                    parsed["state"]
+                ]
+
+            if parsed["fuel"]:
+
+                fuel = parsed["fuel"]
+
+            if parsed["year"]:
+
+                year = parsed["year"]
+
+            if parsed["co2_min"] is not None:
+
+                co2_min = parsed["co2_min"]
+
+        query = session.query(
+            AnnualRecord
         )
 
-    if states:
-        query = query.filter(
-            AnnualRecord.state_code.in_(states)
+        if states:
+
+            query = query.filter(
+                AnnualRecord.state_code.in_(
+                    states
+                )
+            )
+
+        if facility:
+
+            query = query.filter(
+                AnnualRecord.facility_name.ilike(
+                    f"%{facility}%"
+                )
+            )
+
+        if year is not None:
+
+            query = query.filter(
+                AnnualRecord.year == year
+            )
+
+        if fuel:
+
+            query = query.filter(
+                AnnualRecord.primary_fuel == fuel
+            )
+
+        if co2_min is not None:
+
+            query = query.filter(
+                AnnualRecord.co2_mass >= co2_min
+            )
+
+        total = query.count()
+
+        total_pages = max(
+            1,
+            (total + PER_PAGE - 1)
+            // PER_PAGE
         )
 
-    if year is not None:
-        query = query.filter(
-            AnnualRecord.year == year
+        if page > total_pages:
+
+            page = total_pages
+
+        sort_columns = {
+
+            "year":
+                AnnualRecord.year,
+
+            "facility":
+                AnnualRecord.facility_name,
+
+            "state":
+                AnnualRecord.state_code,
+
+            "co2":
+                AnnualRecord.co2_mass,
+
+            "nox":
+                AnnualRecord.nox_mass,
+
+            "so2":
+                AnnualRecord.so2_mass,
+
+        }
+
+        sort_column = sort_columns.get(
+            sort,
+            AnnualRecord.year
         )
 
-    if fuel:
-        query = query.filter(
-            AnnualRecord.primary_fuel == fuel
+        if direction == "asc":
+
+            sort_expression = (
+                sort_column.asc()
+            )
+
+        else:
+
+            sort_expression = (
+                sort_column.desc()
+            )
+
+        rows = (
+            query
+            .order_by(sort_expression)
+            .offset(
+                (page - 1) * PER_PAGE
+            )
+            .limit(PER_PAGE)
+            .all()
         )
 
-    if co2_min is not None:
-        query = query.filter(
-            AnnualRecord.co2_mass >= co2_min
+        available_states = get_states(
+            session,
+            AnnualRecord
         )
 
-    records = query.all()
+        available_fuels = get_annual_fuels(
+            session
+        )
 
-    available_states = get_states()
-    available_fuels = get_annual_fuels()
+        return render_template(
+            "index.html",
+            rows=rows,
+            total=total,
+            page=page,
+            total_pages=total_pages,
+            facility=facility,
+            states=states,
+            year=(
+                str(year)
+                if year is not None
+                else ""
+            ),
+            fuel=fuel,
+            co2_min=(
+                str(co2_min)
+                if co2_min is not None
+                else ""
+            ),
+            description=description,
+            available_states=available_states,
+            available_fuels=available_fuels,
+            sort=sort,
+            direction=direction,
+        )
 
-    session.close()
+    finally:
 
-    return render_template(
-        "index.html",
-        records=records,
-        facility=facility,
-        states=states,
-        state=states[0] if states else "",
-        year=request.args.get(
-            "year",
-            ""
-        ),
-        fuel=fuel,
-        co2_min=request.args.get(
-            "co2_min",
-            ""
-        ),
-        description=description,
-        available_states=available_states,
-        available_fuels=available_fuels,
-    )
+        session.close()
 
-
-# ---------------------------------------------------------------------------
-# Daily data page
-# ---------------------------------------------------------------------------
 
 @main.route("/daily")
 def daily():
-    facility = request.args.get(
-        "facility",
-        ""
-    ).strip()
 
-    states = request.args.getlist("state")
+    session = Session()
 
-    if not states:
-        single_state = request.args.get(
-            "state",
+    try:
+
+        facility = request.args.get(
+            "facility",
             ""
-        ).strip().upper()
+        ).strip()
 
-        if single_state:
-            states = [single_state]
-
-    year = int_or_none(
-        request.args.get("year")
-    )
-
-    quarter = int_or_none(
-        request.args.get("quarter")
-    )
-
-    month = int_or_none(
-        request.args.get("month")
-    )
-
-    day = request.args.get(
-        "day",
-        ""
-    ).strip()
-
-    fuel = request.args.get(
-        "fuel",
-        ""
-    ).strip()
-
-    co2_min = float_or_none(
-        request.args.get("co2_min")
-    )
-
-    view = request.args.get(
-        "view",
-        "day"
-    )
-
-    if view not in PERIOD_COLUMNS:
-        view = "day"
-
-    page = max(
-        int_or_none(
-            request.args.get("page")
-        ) or 1,
-        1,
-    )
-
-    query, session = build_daily_query(
-        facility=facility,
-        states=states,
-        year=year,
-        quarter=quarter,
-        month=month,
-        day=day,
-        fuel=fuel,
-        co2_min=co2_min,
-        view=view,
-    )
-
-    total = query.count()
-
-    rows = (
-        query
-        .limit(PER_PAGE)
-        .offset(
-            (page - 1) * PER_PAGE
+        states = request.args.getlist(
+            "state"
         )
-        .all()
-    )
 
-    pages = max(
-        (total + PER_PAGE - 1) // PER_PAGE,
-        1,
-    )
+        year = int_or_none(
+            request.args.get("year")
+        )
 
-    available_states = get_states()
-    available_fuels = get_daily_fuels()
+        quarter = int_or_none(
+            request.args.get("quarter")
+        )
 
-    session.close()
+        month = int_or_none(
+            request.args.get("month")
+        )
 
-    return render_template(
-        "daily.html",
-        rows=rows,
-        total=total,
-        page=page,
-        pages=pages,
-        view=view,
-        facility=facility,
-        states=states,
-        state=states[0] if states else "",
-        year=request.args.get(
-            "year",
+        day = request.args.get(
+            "day",
             ""
-        ),
-        quarter=request.args.get(
-            "quarter",
-            ""
-        ),
-        month=request.args.get(
-            "month",
-            ""
-        ),
-        day=day,
-        fuel=fuel,
-        co2_min=request.args.get(
-            "co2_min",
-            ""
-        ),
-        available_states=available_states,
-        available_fuels=available_fuels,
-    )
+        ).strip()
 
+        fuel = request.args.get(
+            "fuel",
+            ""
+        ).strip()
 
-# ---------------------------------------------------------------------------
-# Upload data
-# ---------------------------------------------------------------------------
+        co2_min = float_or_none(
+            request.args.get("co2_min")
+        )
+
+        view = request.args.get(
+            "view",
+            "day"
+        ).strip()
+
+        description = request.args.get(
+            "description",
+            ""
+        ).strip()
+
+        page = int_or_none(
+            request.args.get("page")
+        ) or 1
+
+        sort = request.args.get(
+            "sort",
+            "date"
+        )
+
+        direction = request.args.get(
+            "direction",
+            "desc"
+        )
+
+        if description:
+
+            parsed = parse_description(
+                description
+            )
+
+            if parsed["state"]:
+
+                states = [
+                    parsed["state"]
+                ]
+
+            if parsed["fuel"]:
+
+                fuel = parsed["fuel"]
+
+            if parsed["year"]:
+
+                year = parsed["year"]
+
+            if parsed["co2_min"] is not None:
+
+                co2_min = 1000
+
+        query = build_daily_query(
+            session=session,
+            states=states,
+            facility=facility,
+            year=year,
+            quarter=quarter,
+            month=month,
+            day=day,
+            fuel=fuel,
+            co2_min=co2_min,
+        )
+
+        if view == "month":
+
+            grouped_query = (
+                session.query(
+
+                    DailyRecord.state_code.label(
+                        "state_code"
+                    ),
+
+                    DailyRecord.facility_name.label(
+                        "facility_name"
+                    ),
+
+                    DailyRecord.unit_id.label(
+                        "unit_id"
+                    ),
+
+                    DailyRecord.year.label(
+                        "year"
+                    ),
+
+                    DailyRecord.month.label(
+                        "month"
+                    ),
+
+                    func.count(
+                        DailyRecord.id
+                    ).label(
+                        "days"
+                    ),
+
+                    func.sum(
+                        DailyRecord.operating_time
+                    ).label(
+                        "operating_time"
+                    ),
+
+                    func.sum(
+                        DailyRecord.gross_load
+                    ).label(
+                        "gross_load"
+                    ),
+
+                    func.sum(
+                        DailyRecord.heat_input
+                    ).label(
+                        "heat_input"
+                    ),
+
+                    func.sum(
+                        DailyRecord.co2_mass
+                    ).label(
+                        "co2_mass"
+                    ),
+
+                    func.sum(
+                        DailyRecord.so2_mass
+                    ).label(
+                        "so2_mass"
+                    ),
+
+                    func.sum(
+                        DailyRecord.nox_mass
+                    ).label(
+                        "nox_mass"
+                    ),
+
+                )
+                .filter(
+                    DailyRecord.id.in_(
+                        query.with_entities(
+                            DailyRecord.id
+                        )
+                    )
+                )
+                .group_by(
+
+                    DailyRecord.state_code,
+                    DailyRecord.facility_name,
+                    DailyRecord.unit_id,
+                    DailyRecord.year,
+                    DailyRecord.month,
+
+                )
+            )
+
+            sort_columns = {
+
+                "facility":
+                    DailyRecord.facility_name,
+
+                "co2":
+                    func.sum(
+                        DailyRecord.co2_mass
+                    ),
+
+                "nox":
+                    func.sum(
+                        DailyRecord.nox_mass
+                    ),
+
+                "so2":
+                    func.sum(
+                        DailyRecord.so2_mass
+                    ),
+
+            }
+
+            sort_column = sort_columns.get(
+                sort,
+                DailyRecord.year
+            )
+
+            if sort == "date":
+
+                sort_column = DailyRecord.year
+
+            if direction == "asc":
+
+                grouped_query = (
+                    grouped_query
+                    .order_by(
+                        sort_column.asc()
+                    )
+                )
+
+            else:
+
+                grouped_query = (
+                    grouped_query
+                    .order_by(
+                        sort_column.desc()
+                    )
+                )
+
+            total = grouped_query.count()
+
+            total_pages = max(
+                1,
+                (total + PER_PAGE - 1)
+                // PER_PAGE
+            )
+
+            if page > total_pages:
+
+                page = total_pages
+
+            rows = (
+                grouped_query
+                .offset(
+                    (page - 1) * PER_PAGE
+                )
+                .limit(PER_PAGE)
+                .all()
+            )
+
+        elif view == "quarter":
+
+            grouped_query = (
+                session.query(
+
+                    DailyRecord.state_code.label(
+                        "state_code"
+                    ),
+
+                    DailyRecord.facility_name.label(
+                        "facility_name"
+                    ),
+
+                    DailyRecord.unit_id.label(
+                        "unit_id"
+                    ),
+
+                    DailyRecord.year.label(
+                        "year"
+                    ),
+
+                    DailyRecord.quarter.label(
+                        "quarter"
+                    ),
+
+                    func.count(
+                        DailyRecord.id
+                    ).label(
+                        "days"
+                    ),
+
+                    func.sum(
+                        DailyRecord.operating_time
+                    ).label(
+                        "operating_time"
+                    ),
+
+                    func.sum(
+                        DailyRecord.gross_load
+                    ).label(
+                        "gross_load"
+                    ),
+
+                    func.sum(
+                        DailyRecord.heat_input
+                    ).label(
+                        "heat_input"
+                    ),
+
+                    func.sum(
+                        DailyRecord.co2_mass
+                    ).label(
+                        "co2_mass"
+                    ),
+
+                    func.sum(
+                        DailyRecord.so2_mass
+                    ).label(
+                        "so2_mass"
+                    ),
+
+                    func.sum(
+                        DailyRecord.nox_mass
+                    ).label(
+                        "nox_mass"
+                    ),
+
+                )
+                .filter(
+                    DailyRecord.id.in_(
+                        query.with_entities(
+                            DailyRecord.id
+                        )
+                    )
+                )
+                .group_by(
+
+                    DailyRecord.state_code,
+                    DailyRecord.facility_name,
+                    DailyRecord.unit_id,
+                    DailyRecord.year,
+                    DailyRecord.quarter,
+
+                )
+            )
+
+            sort_columns = {
+
+                "facility":
+                    DailyRecord.facility_name,
+
+                "co2":
+                    func.sum(
+                        DailyRecord.co2_mass
+                    ),
+
+                "nox":
+                    func.sum(
+                        DailyRecord.nox_mass
+                    ),
+
+                "so2":
+                    func.sum(
+                        DailyRecord.so2_mass
+                    ),
+
+            }
+
+            sort_column = sort_columns.get(
+                sort,
+                DailyRecord.year
+            )
+
+            if direction == "asc":
+
+                grouped_query = (
+                    grouped_query
+                    .order_by(
+                        sort_column.asc()
+                    )
+                )
+
+            else:
+
+                grouped_query = (
+                    grouped_query
+                    .order_by(
+                        sort_column.desc()
+                    )
+                )
+
+            total = grouped_query.count()
+
+            total_pages = max(
+                1,
+                (total + PER_PAGE - 1)
+                // PER_PAGE
+            )
+
+            if page > total_pages:
+
+                page = total_pages
+
+            rows = (
+                grouped_query
+                .offset(
+                    (page - 1) * PER_PAGE
+                )
+                .limit(PER_PAGE)
+                .all()
+            )
+
+        elif view == "year":
+
+            grouped_query = (
+                session.query(
+
+                    DailyRecord.state_code.label(
+                        "state_code"
+                    ),
+
+                    DailyRecord.facility_name.label(
+                        "facility_name"
+                    ),
+
+                    DailyRecord.unit_id.label(
+                        "unit_id"
+                    ),
+
+                    DailyRecord.year.label(
+                        "year"
+                    ),
+
+                    func.count(
+                        DailyRecord.id
+                    ).label(
+                        "days"
+                    ),
+
+                    func.sum(
+                        DailyRecord.operating_time
+                    ).label(
+                        "operating_time"
+                    ),
+
+                    func.sum(
+                        DailyRecord.gross_load
+                    ).label(
+                        "gross_load"
+                    ),
+
+                    func.sum(
+                        DailyRecord.heat_input
+                    ).label(
+                        "heat_input"
+                    ),
+
+                    func.sum(
+                        DailyRecord.co2_mass
+                    ).label(
+                        "co2_mass"
+                    ),
+
+                    func.sum(
+                        DailyRecord.so2_mass
+                    ).label(
+                        "so2_mass"
+                    ),
+
+                    func.sum(
+                        DailyRecord.nox_mass
+                    ).label(
+                        "nox_mass"
+                    ),
+
+                )
+                .filter(
+                    DailyRecord.id.in_(
+                        query.with_entities(
+                            DailyRecord.id
+                        )
+                    )
+                )
+                .group_by(
+
+                    DailyRecord.state_code,
+                    DailyRecord.facility_name,
+                    DailyRecord.unit_id,
+                    DailyRecord.year,
+
+                )
+            )
+
+            sort_columns = {
+
+                "facility":
+                    DailyRecord.facility_name,
+
+                "co2":
+                    func.sum(
+                        DailyRecord.co2_mass
+                    ),
+
+                "nox":
+                    func.sum(
+                        DailyRecord.nox_mass
+                    ),
+
+                "so2":
+                    func.sum(
+                        DailyRecord.so2_mass
+                    ),
+
+            }
+
+            sort_column = sort_columns.get(
+                sort,
+                DailyRecord.year
+            )
+
+            if direction == "asc":
+
+                grouped_query = (
+                    grouped_query
+                    .order_by(
+                        sort_column.asc()
+                    )
+                )
+
+            else:
+
+                grouped_query = (
+                    grouped_query
+                    .order_by(
+                        sort_column.desc()
+                    )
+                )
+
+            total = grouped_query.count()
+
+            total_pages = max(
+                1,
+                (total + PER_PAGE - 1)
+                // PER_PAGE
+            )
+
+            if page > total_pages:
+
+                page = total_pages
+
+            rows = (
+                grouped_query
+                .offset(
+                    (page - 1) * PER_PAGE
+                )
+                .limit(PER_PAGE)
+                .all()
+            )
+
+        else:
+
+            total = query.count()
+
+            total_pages = max(
+                1,
+                (total + PER_PAGE - 1)
+                // PER_PAGE
+            )
+
+            if page > total_pages:
+
+                page = total_pages
+
+            sort_columns = {
+
+                "date":
+                    DailyRecord.date,
+
+                "facility":
+                    DailyRecord.facility_name,
+
+                "co2":
+                    DailyRecord.co2_mass,
+
+                "nox":
+                    DailyRecord.nox_mass,
+
+                "so2":
+                    DailyRecord.so2_mass,
+
+            }
+
+            sort_column = sort_columns.get(
+                sort,
+                DailyRecord.date
+            )
+
+            if direction == "asc":
+
+                sort_expression = (
+                    sort_column.asc()
+                )
+
+            else:
+
+                sort_expression = (
+                    sort_column.desc()
+                )
+
+            rows = (
+                query
+                .order_by(
+                    sort_expression
+                )
+                .offset(
+                    (page - 1) * PER_PAGE
+                )
+                .limit(PER_PAGE)
+                .all()
+            )
+
+            class DailyRow:
+                pass
+
+            formatted_rows = []
+
+            for row in rows:
+
+                item = DailyRow()
+
+                item.state_code = (
+                    row.state_code
+                )
+
+                item.facility_name = (
+                    row.facility_name
+                )
+
+                item.unit_id = (
+                    row.unit_id
+                )
+
+                item.date = (
+                    row.date
+                )
+
+                item.year = (
+                    row.year
+                )
+
+                item.month = (
+                    row.month
+                )
+
+                item.quarter = (
+                    row.quarter
+                )
+
+                item.days = 1
+
+                item.operating_time = (
+                    row.operating_time
+                )
+
+                item.gross_load = (
+                    row.gross_load
+                )
+
+                item.heat_input = (
+                    row.heat_input
+                )
+
+                item.co2_mass = (
+                    row.co2_mass
+                )
+
+                item.so2_mass = (
+                    row.so2_mass
+                )
+
+                item.nox_mass = (
+                    row.nox_mass
+                )
+
+                formatted_rows.append(
+                    item
+                )
+
+            rows = formatted_rows
+
+        available_states = get_states(
+            session,
+            DailyRecord
+        )
+
+        available_fuels = get_daily_fuels(
+            session
+        )
+
+        return render_template(
+            "daily.html",
+            rows=rows,
+            total=total,
+            page=page,
+            total_pages=total_pages,
+            facility=facility,
+            states=states,
+            year=(
+                str(year)
+                if year is not None
+                else ""
+            ),
+            quarter=(
+                str(quarter)
+                if quarter is not None
+                else ""
+            ),
+            month=(
+                str(month)
+                if month is not None
+                else ""
+            ),
+            day=day,
+            fuel=fuel,
+            co2_min=(
+                str(co2_min)
+                if co2_min is not None
+                else ""
+            ),
+            view=view,
+            description=description,
+            available_states=available_states,
+            available_fuels=available_fuels,
+            sort=sort,
+            direction=direction,
+        )
+
+    finally:
+
+        session.close()
+
 
 @main.route(
     "/upload",
     methods=["GET", "POST"]
 )
 def upload():
-    message = None
-    error = None
 
-    if request.method == "POST":
-        file = request.files.get("file")
+    session = Session()
 
-        data_type = request.form.get(
-            "data_type",
-            "annual"
-        )
+    try:
 
-        mode = request.form.get(
-            "mode",
-            "append"
-        )
+        message = ""
+        error = ""
 
-        if not file or file.filename == "":
-            error = "Please select a CSV file."
+        if request.method == "POST":
 
-        elif not file.filename.lower().endswith(".csv"):
-            error = "Only CSV files are supported."
+            file = request.files.get(
+                "file"
+            )
 
-        else:
-            try:
-                if data_type == "annual":
+            data_type = request.form.get(
+                "data_type",
+                "annual"
+            )
 
-                    file.stream.seek(0)
+            mode = request.form.get(
+                "mode",
+                "append"
+            )
 
-                    df = pd.read_csv(file)
+            if not file:
 
-                    required_columns = [
-                        "State",
-                        "Facility Name",
-                        "Facility ID",
-                        "Unit ID",
-                        "Year",
-                        "Sum of the Operating Time",
-                        "Gross Load (MWh)",
-                        "Heat Input (mmBtu)",
-                        "SO2 Mass (short tons)",
-                        "SO2 Rate (lbs/mmBtu)",
-                        "CO2 Mass (short tons)",
-                        "CO2 Rate (short tons/mmBtu)",
-                        "NOx Mass (short tons)",
-                        "NOx Rate (lbs/mmBtu)",
-                        "Primary Fuel Type",
-                        "Unit Type",
-                    ]
+                error = (
+                    "Please select a CSV file."
+                )
 
-                    missing = [
-                        column
-                        for column in required_columns
-                        if column not in df.columns
-                    ]
+            elif not file.filename.lower().endswith(
+                ".csv"
+            ):
 
-                    if missing:
-                        error = (
-                            "The uploaded file is missing "
-                            "required columns: "
-                            + ", ".join(missing)
-                        )
+                error = (
+                    "Only CSV files are supported."
+                )
 
-                    else:
-                        session = Session()
+            else:
 
-                        if mode == "replace":
+                try:
+
+                    chunks = pd.read_csv(
+                        file,
+                        chunksize=10000
+                    )
+
+                    first_chunk = True
+                    imported = 0
+
+                    if mode == "replace":
+
+                        if data_type == "annual":
+
                             session.query(
                                 AnnualRecord
                             ).delete()
 
-                        for _, row in df.iterrows():
+                        else:
 
-                            record = AnnualRecord(
-                                state_code=row.get(
-                                    "State"
-                                ),
-                                facility_name=row.get(
-                                    "Facility Name"
-                                ),
-                                facility_id=row.get(
-                                    "Facility ID"
-                                ),
-                                unit_id=(
-                                    str(
-                                        row.get("Unit ID")
-                                    )
-                                    if pd.notna(
-                                        row.get("Unit ID")
-                                    )
-                                    else None
-                                ),
-                                year=row.get(
-                                    "Year"
-                                ),
-                                operating_time=row.get(
-                                    "Sum of the Operating Time"
-                                ),
-                                gross_load=row.get(
-                                    "Gross Load (MWh)"
-                                ),
-                                heat_input=row.get(
-                                    "Heat Input (mmBtu)"
-                                ),
-                                so2_mass=row.get(
-                                    "SO2 Mass (short tons)"
-                                ),
-                                so2_rate=row.get(
-                                    "SO2 Rate (lbs/mmBtu)"
-                                ),
-                                co2_mass=row.get(
-                                    "CO2 Mass (short tons)"
-                                ),
-                                co2_rate=row.get(
-                                    "CO2 Rate (short tons/mmBtu)"
-                                ),
-                                nox_mass=row.get(
-                                    "NOx Mass (short tons)"
-                                ),
-                                nox_rate=row.get(
-                                    "NOx Rate (lbs/mmBtu)"
-                                ),
-                                primary_fuel=row.get(
-                                    "Primary Fuel Type"
-                                ),
-                                unit_type=row.get(
-                                    "Unit Type"
-                                ),
-                            )
-
-                            session.add(record)
+                            session.query(
+                                DailyRecord
+                            ).delete()
 
                         session.commit()
 
-                        count = session.query(
-                            AnnualRecord
-                        ).count()
+                    for chunk in chunks:
 
-                        session.close()
+                        if first_chunk:
+
+                            if data_type == "annual":
+
+                                required_columns = {
+                                    "State",
+                                    "Facility Name",
+                                    "Facility ID",
+                                    "Unit ID",
+                                    "Year",
+                                    "CO2 Mass (short tons)",
+                                    "NOx Mass (short tons)",
+                                    "SO2 Mass (short tons)",
+                                }
+
+                            else:
+
+                                required_columns = {
+                                    "State",
+                                    "Facility Name",
+                                    "Facility ID",
+                                    "Unit ID",
+                                    "Date",
+                                    "CO2 Mass (short tons)",
+                                    "NOx Mass (short tons)",
+                                    "SO2 Mass (short tons)",
+                                }
+
+                            missing = (
+                                required_columns
+                                - set(chunk.columns)
+                            )
+
+                            if missing:
+
+                                error = (
+                                    "Missing required columns: "
+                                    + ", ".join(
+                                        sorted(missing)
+                                    )
+                                )
+
+                                break
+
+                            first_chunk = False
+
+                        if data_type == "annual":
+
+                            for _, row in chunk.iterrows():
+
+                                record = AnnualRecord(
+
+                                    state_code=row.get(
+                                        "State"
+                                    ),
+
+                                    facility_name=row.get(
+                                        "Facility Name"
+                                    ),
+
+                                    facility_id=int_or_none(
+                                        row.get(
+                                            "Facility ID"
+                                        )
+                                    ),
+
+                                    unit_id=str(
+                                        row.get(
+                                            "Unit ID",
+                                            ""
+                                        )
+                                    ),
+
+                                    year=int_or_none(
+                                        row.get(
+                                            "Year"
+                                        )
+                                    ),
+
+                                    operating_time=float_or_none(
+                                        row.get(
+                                            "Sum of the Operating Time"
+                                        )
+                                    ),
+
+                                    gross_load=float_or_none(
+                                        row.get(
+                                            "Gross Load (MWh)"
+                                        )
+                                    ),
+
+                                    heat_input=float_or_none(
+                                        row.get(
+                                            "Heat Input (mmBtu)"
+                                        )
+                                    ),
+
+                                    so2_mass=float_or_none(
+                                        row.get(
+                                            "SO2 Mass (short tons)"
+                                        )
+                                    ),
+
+                                    so2_rate=float_or_none(
+                                        row.get(
+                                            "SO2 Rate (lbs/mmBtu)"
+                                        )
+                                    ),
+
+                                    co2_mass=float_or_none(
+                                        row.get(
+                                            "CO2 Mass (short tons)"
+                                        )
+                                    ),
+
+                                    co2_rate=float_or_none(
+                                        row.get(
+                                            "CO2 Rate (short tons/mmBtu)"
+                                        )
+                                    ),
+
+                                    nox_mass=float_or_none(
+                                        row.get(
+                                            "NOx Mass (short tons)"
+                                        )
+                                    ),
+
+                                    nox_rate=float_or_none(
+                                        row.get(
+                                            "NOx Rate (lbs/mmBtu)"
+                                        )
+                                    ),
+
+                                    primary_fuel=row.get(
+                                        "Primary Fuel Type"
+                                    ),
+
+                                    unit_type=row.get(
+                                        "Unit Type"
+                                    ),
+
+                                )
+
+                                session.add(
+                                    record
+                                )
+
+                                imported += 1
+
+                        else:
+
+                            for _, row in chunk.iterrows():
+
+                                date_value = row.get(
+                                    "Date"
+                                )
+
+                                date_string = (
+                                    str(date_value)
+                                    if pd.notna(
+                                        date_value
+                                    )
+                                    else ""
+                                )
+
+                                year_value = None
+                                month_value = None
+                                quarter_value = None
+
+                                try:
+
+                                    parsed_date = (
+                                        pd.to_datetime(
+                                            date_value
+                                        )
+                                    )
+
+                                    year_value = (
+                                        parsed_date.year
+                                    )
+
+                                    month_value = (
+                                        parsed_date.month
+                                    )
+
+                                    quarter_value = (
+                                        (
+                                            parsed_date.month
+                                            - 1
+                                        )
+                                        // 3
+                                    ) + 1
+
+                                except Exception:
+
+                                    pass
+
+                                record = DailyRecord(
+
+                                    state_code=row.get(
+                                        "State"
+                                    ),
+
+                                    facility_name=row.get(
+                                        "Facility Name"
+                                    ),
+
+                                    facility_id=int_or_none(
+                                        row.get(
+                                            "Facility ID"
+                                        )
+                                    ),
+
+                                    unit_id=str(
+                                        row.get(
+                                            "Unit ID",
+                                            ""
+                                        )
+                                    ),
+
+                                    associated_stacks=row.get(
+                                        "Associated Stacks"
+                                    ),
+
+                                    date=date_string,
+
+                                    year=year_value,
+
+                                    quarter=quarter_value,
+
+                                    month=month_value,
+
+                                    operating_time_count=float_or_none(
+                                        row.get(
+                                            "Operating Time Count"
+                                        )
+                                    ),
+
+                                    operating_time=float_or_none(
+                                        row.get(
+                                            "Sum of the Operating Time"
+                                        )
+                                    ),
+
+                                    gross_load=float_or_none(
+                                        row.get(
+                                            "Gross Load (MWh)"
+                                        )
+                                    ),
+
+                                    steam_load=float_or_none(
+                                        row.get(
+                                            "Steam Load (1000 lb)"
+                                        )
+                                    ),
+
+                                    heat_input=float_or_none(
+                                        row.get(
+                                            "Heat Input (mmBtu)"
+                                        )
+                                    ),
+
+                                    so2_mass=float_or_none(
+                                        row.get(
+                                            "SO2 Mass (short tons)"
+                                        )
+                                    ),
+
+                                    so2_rate=float_or_none(
+                                        row.get(
+                                            "SO2 Rate (lbs/mmBtu)"
+                                        )
+                                    ),
+
+                                    co2_mass=float_or_none(
+                                        row.get(
+                                            "CO2 Mass (short tons)"
+                                        )
+                                    ),
+
+                                    co2_rate=float_or_none(
+                                        row.get(
+                                            "CO2 Rate (short tons/mmBtu)"
+                                        )
+                                    ),
+
+                                    nox_mass=float_or_none(
+                                        row.get(
+                                            "NOx Mass (short tons)"
+                                        )
+                                    ),
+
+                                    nox_rate=float_or_none(
+                                        row.get(
+                                            "NOx Rate (lbs/mmBtu)"
+                                        )
+                                    ),
+
+                                    primary_fuel_type=row.get(
+                                        "Primary Fuel Type"
+                                    ),
+
+                                    secondary_fuel_type=row.get(
+                                        "Secondary Fuel Type"
+                                    ),
+
+                                    unit_type=row.get(
+                                        "Unit Type"
+                                    ),
+
+                                    so2_controls=row.get(
+                                        "SO2 Controls"
+                                    ),
+
+                                    nox_controls=row.get(
+                                        "NOx Controls"
+                                    ),
+
+                                    pm_controls=row.get(
+                                        "PM Controls"
+                                    ),
+
+                                    hg_controls=row.get(
+                                        "Hg Controls"
+                                    ),
+
+                                    program_code=row.get(
+                                        "Program Code"
+                                    ),
+
+                                )
+
+                                session.add(
+                                    record
+                                )
+
+                                imported += 1
+
+                        session.commit()
+
+                    if not error:
 
                         message = (
-                            "Successfully imported annual "
-                            "data. The database now contains "
-                            f"{count:,} annual records."
+                            f"Successfully imported "
+                            f"{imported:,} record(s)."
                         )
 
-                elif data_type == "daily":
+                except Exception as exc:
 
-                    required_columns = [
-                        "State",
-                        "Facility Name",
-                        "Facility ID",
-                        "Unit ID",
-                        "Associated Stacks",
-                        "Date",
-                        "Operating Time Count",
-                        "Sum of the Operating Time",
-                        "Gross Load (MWh)",
-                        "Steam Load (1000 lb)",
-                        "SO2 Mass (short tons)",
-                        "SO2 Rate (lbs/mmBtu)",
-                        "CO2 Mass (short tons)",
-                        "CO2 Rate (short tons/mmBtu)",
-                        "NOx Mass (short tons)",
-                        "NOx Rate (lbs/mmBtu)",
-                        "Heat Input (mmBtu)",
-                        "Primary Fuel Type",
-                        "Secondary Fuel Type",
-                        "Unit Type",
-                        "SO2 Controls",
-                        "NOx Controls",
-                        "PM Controls",
-                        "Hg Controls",
-                        "Program Code",
-                    ]
+                    session.rollback()
 
-                    file.stream.seek(0)
-
-                    header_df = pd.read_csv(
-                        file,
-                        nrows=0
+                    error = (
+                        f"Import failed: {exc}"
                     )
 
-                    missing = [
-                        column
-                        for column in required_columns
-                        if column not in header_df.columns
-                    ]
+        return render_template(
+            "upload.html",
+            message=message,
+            error=error,
+        )
 
-                    if missing:
-                        error = (
-                            "The uploaded file is missing "
-                            "required columns: "
-                            + ", ".join(missing)
-                        )
+    finally:
 
-                    else:
-                        file.stream.seek(0)
-
-                        connection = engine.connect()
-
-                        if mode == "replace":
-                            connection.exec_driver_sql(
-                                "DELETE FROM daily_records"
-                            )
-                            connection.commit()
-
-                        connection.close()
-
-                        total_imported = 0
-
-                        for chunk in pd.read_csv(
-                            file,
-                            chunksize=50000
-                        ):
-
-                            chunk["Date"] = pd.to_datetime(
-                                chunk["Date"],
-                                errors="coerce"
-                            )
-
-                            chunk = chunk.dropna(
-                                subset=["Date"]
-                            )
-
-                            daily_df = pd.DataFrame({
-                                "state_code": chunk[
-                                    "State"
-                                ],
-                                "facility_name": chunk[
-                                    "Facility Name"
-                                ],
-                                "facility_id": pd.to_numeric(
-                                    chunk[
-                                        "Facility ID"
-                                    ],
-                                    errors="coerce"
-                                ),
-                                "unit_id": chunk[
-                                    "Unit ID"
-                                ].astype(str),
-                                "associated_stacks": chunk[
-                                    "Associated Stacks"
-                                ],
-                                "date": chunk[
-                                    "Date"
-                                ].dt.strftime(
-                                    "%Y-%m-%d"
-                                ),
-                                "year": chunk[
-                                    "Date"
-                                ].dt.year,
-                                "quarter": (
-                                    (
-                                        chunk[
-                                            "Date"
-                                        ].dt.month - 1
-                                    ) // 3
-                                ) + 1,
-                                "month": chunk[
-                                    "Date"
-                                ].dt.month,
-                                "operating_time_count": chunk[
-                                    "Operating Time Count"
-                                ],
-                                "operating_time": chunk[
-                                    "Sum of the Operating Time"
-                                ],
-                                "gross_load": chunk[
-                                    "Gross Load (MWh)"
-                                ],
-                                "steam_load": chunk[
-                                    "Steam Load (1000 lb)"
-                                ],
-                                "heat_input": chunk[
-                                    "Heat Input (mmBtu)"
-                                ],
-                                "so2_mass": chunk[
-                                    "SO2 Mass (short tons)"
-                                ],
-                                "so2_rate": chunk[
-                                    "SO2 Rate (lbs/mmBtu)"
-                                ],
-                                "co2_mass": chunk[
-                                    "CO2 Mass (short tons)"
-                                ],
-                                "co2_rate": chunk[
-                                    "CO2 Rate (short tons/mmBtu)"
-                                ],
-                                "nox_mass": chunk[
-                                    "NOx Mass (short tons)"
-                                ],
-                                "nox_rate": chunk[
-                                    "NOx Rate (lbs/mmBtu)"
-                                ],
-                                "primary_fuel_type": chunk[
-                                    "Primary Fuel Type"
-                                ],
-                                "secondary_fuel_type": chunk[
-                                    "Secondary Fuel Type"
-                                ],
-                                "unit_type": chunk[
-                                    "Unit Type"
-                                ],
-                                "so2_controls": chunk[
-                                    "SO2 Controls"
-                                ],
-                                "nox_controls": chunk[
-                                    "NOx Controls"
-                                ],
-                                "pm_controls": chunk[
-                                    "PM Controls"
-                                ],
-                                "hg_controls": chunk[
-                                    "Hg Controls"
-                                ],
-                                "program_code": chunk[
-                                    "Program Code"
-                                ],
-                            })
-
-                            daily_df.to_sql(
-                                "daily_records",
-                                engine,
-                                if_exists="append",
-                                index=False,
-                                method="multi",
-                                chunksize=1000,
-                            )
-
-                            total_imported += len(
-                                daily_df
-                            )
-
-                        session = Session()
-
-                        count = session.query(
-                            DailyRecord
-                        ).count()
-
-                        session.close()
-
-                        message = (
-                            "Successfully imported daily "
-                            "data. The database now contains "
-                            f"{count:,} daily records."
-                        )
-
-            except Exception as e:
-                error = f"Upload failed: {e}"
-
-    return render_template(
-        "upload.html",
-        message=message,
-        error=error,
-    )
+        session.close()
 
 
-# ---------------------------------------------------------------------------
-# Download annual results
-# ---------------------------------------------------------------------------
-
-@main.route("/download/annual")
+@main.route(
+    "/download/annual"
+)
 def download_annual():
-
-    facility = request.args.get(
-        "facility",
-        ""
-    ).strip()
-
-    states = request.args.getlist("state")
-
-    if not states:
-        single_state = request.args.get(
-            "state",
-            ""
-        ).strip().upper()
-
-        if single_state:
-            states = [single_state]
-
-    year = int_or_none(
-        request.args.get("year")
-    )
-
-    fuel = request.args.get(
-        "fuel",
-        ""
-    ).strip()
-
-    co2_min = float_or_none(
-        request.args.get("co2_min")
-    )
 
     session = Session()
 
-    query = session.query(
-        AnnualRecord
-    )
+    try:
 
-    if facility:
-        query = query.filter(
-            AnnualRecord.facility_name.ilike(
-                f"%{facility}%"
+        facility = request.args.get(
+            "facility",
+            ""
+        ).strip()
+
+        states = request.args.getlist(
+            "state"
+        )
+
+        year = int_or_none(
+            request.args.get("year")
+        )
+
+        fuel = request.args.get(
+            "fuel",
+            ""
+        ).strip()
+
+        co2_min = float_or_none(
+            request.args.get("co2_min")
+        )
+
+        description = request.args.get(
+            "description",
+            ""
+        ).strip()
+
+        if description:
+
+            parsed = parse_description(
+                description
             )
+
+            if parsed["state"]:
+
+                states = [
+                    parsed["state"]
+                ]
+
+            if parsed["fuel"]:
+
+                fuel = parsed["fuel"]
+
+            if parsed["year"]:
+
+                year = parsed["year"]
+
+            if parsed["co2_min"] is not None:
+
+                co2_min = parsed["co2_min"]
+
+        query = session.query(
+            AnnualRecord
         )
 
-    if states:
-        query = query.filter(
-            AnnualRecord.state_code.in_(states)
+        if states:
+
+            query = query.filter(
+                AnnualRecord.state_code.in_(
+                    states
+                )
+            )
+
+        if facility:
+
+            query = query.filter(
+                AnnualRecord.facility_name.ilike(
+                    f"%{facility}%"
+                )
+            )
+
+        if year is not None:
+
+            query = query.filter(
+                AnnualRecord.year == year
+            )
+
+        if fuel:
+
+            query = query.filter(
+                AnnualRecord.primary_fuel == fuel
+            )
+
+        if co2_min is not None:
+
+            query = query.filter(
+                AnnualRecord.co2_mass >= co2_min
+            )
+
+        rows = query.all()
+
+        data = []
+
+        for row in rows:
+
+            data.append({
+
+                "State":
+                    row.state_code,
+
+                "Facility Name":
+                    row.facility_name,
+
+                "Facility ID":
+                    row.facility_id,
+
+                "Unit ID":
+                    row.unit_id,
+
+                "Year":
+                    row.year,
+
+                "Operating Time":
+                    row.operating_time,
+
+                "Gross Load":
+                    row.gross_load,
+
+                "Heat Input":
+                    row.heat_input,
+
+                "SO2 Mass":
+                    row.so2_mass,
+
+                "SO2 Rate":
+                    row.so2_rate,
+
+                "CO2 Mass":
+                    row.co2_mass,
+
+                "CO2 Rate":
+                    row.co2_rate,
+
+                "NOx Mass":
+                    row.nox_mass,
+
+                "NOx Rate":
+                    row.nox_rate,
+
+                "Primary Fuel":
+                    row.primary_fuel,
+
+                "Unit Type":
+                    row.unit_type,
+
+            })
+
+        df = pd.DataFrame(
+            data
         )
 
-    if year is not None:
-        query = query.filter(
-            AnnualRecord.year == year
+        output = BytesIO()
+
+        df.to_csv(
+            output,
+            index=False
         )
 
-    if fuel:
-        query = query.filter(
-            AnnualRecord.primary_fuel == fuel
+        output.seek(0)
+
+        return send_file(
+            output,
+            mimetype="text/csv",
+            as_attachment=True,
+            download_name="annual_results.csv",
         )
 
-    if co2_min is not None:
-        query = query.filter(
-            AnnualRecord.co2_mass >= co2_min
-        )
+    finally:
 
-    records = query.all()
-
-    data = []
-
-    for record in records:
-        data.append({
-            "State": record.state_code,
-            "Facility Name": record.facility_name,
-            "Facility ID": record.facility_id,
-            "Unit ID": record.unit_id,
-            "Year": record.year,
-            "Primary Fuel Type": record.primary_fuel,
-            "Unit Type": record.unit_type,
-            "CO2 Mass": record.co2_mass,
-            "CO2 Rate": record.co2_rate,
-            "NOx Mass": record.nox_mass,
-            "NOx Rate": record.nox_rate,
-            "SO2 Mass": record.so2_mass,
-            "SO2 Rate": record.so2_rate,
-            "Gross Load": record.gross_load,
-            "Heat Input": record.heat_input,
-        })
-
-    session.close()
-
-    df = pd.DataFrame(data)
-
-    output = BytesIO()
-
-    df.to_csv(
-        output,
-        index=False
-    )
-
-    output.seek(0)
-
-    return send_file(
-        output,
-        mimetype="text/csv",
-        as_attachment=True,
-        download_name="annual_results.csv",
-    )
+        session.close()
 
 
-# ---------------------------------------------------------------------------
-# Download daily results
-# ---------------------------------------------------------------------------
-
-@main.route("/download/daily")
+@main.route(
+    "/download/daily"
+)
 def download_daily():
 
-    facility = request.args.get(
-        "facility",
-        ""
-    ).strip()
+    session = Session()
 
-    states = request.args.getlist("state")
+    try:
 
-    if not states:
-        single_state = request.args.get(
-            "state",
+        facility = request.args.get(
+            "facility",
             ""
-        ).strip().upper()
+        ).strip()
 
-        if single_state:
-            states = [single_state]
+        states = request.args.getlist(
+            "state"
+        )
 
-    year = int_or_none(
-        request.args.get("year")
-    )
+        year = int_or_none(
+            request.args.get("year")
+        )
 
-    quarter = int_or_none(
-        request.args.get("quarter")
-    )
+        quarter = int_or_none(
+            request.args.get("quarter")
+        )
 
-    month = int_or_none(
-        request.args.get("month")
-    )
+        month = int_or_none(
+            request.args.get("month")
+        )
 
-    day = request.args.get(
-        "day",
-        ""
-    ).strip()
+        day = request.args.get(
+            "day",
+            ""
+        ).strip()
 
-    fuel = request.args.get(
-        "fuel",
-        ""
-    ).strip()
+        fuel = request.args.get(
+            "fuel",
+            ""
+        ).strip()
 
-    co2_min = float_or_none(
-        request.args.get("co2_min")
-    )
+        co2_min = float_or_none(
+            request.args.get("co2_min")
+        )
 
-    view = request.args.get(
-        "view",
-        "day"
-    )
+        description = request.args.get(
+            "description",
+            ""
+        ).strip()
 
-    if view not in PERIOD_COLUMNS:
-        view = "day"
+        if description:
 
-    query, session = build_daily_query(
-        facility=facility,
-        states=states,
-        year=year,
-        quarter=quarter,
-        month=month,
-        day=day,
-        fuel=fuel,
-        co2_min=co2_min,
-        view=view,
-    )
+            parsed = parse_description(
+                description
+            )
 
-    rows = query.all()
+            if parsed["state"]:
 
-    data = []
+                states = [
+                    parsed["state"]
+                ]
 
-    for row in rows:
-        item = {}
+            if parsed["fuel"]:
 
-        for index, column in enumerate(
-            query.column_descriptions
-        ):
-            item[column["name"]] = row[index]
+                fuel = parsed["fuel"]
 
-        data.append(item)
+            if parsed["year"]:
 
-    session.close()
+                year = parsed["year"]
 
-    df = pd.DataFrame(data)
+            if parsed["co2_min"] is not None:
 
-    output = BytesIO()
+                co2_min = 1000
 
-    df.to_csv(
-        output,
-        index=False
-    )
+        query = build_daily_query(
+            session=session,
+            states=states,
+            facility=facility,
+            year=year,
+            quarter=quarter,
+            month=month,
+            day=day,
+            fuel=fuel,
+            co2_min=co2_min,
+        )
 
-    output.seek(0)
+        rows = query.all()
 
-    return send_file(
-        output,
-        mimetype="text/csv",
-        as_attachment=True,
-        download_name="daily_results.csv",
-    )
+        data = []
+
+        for row in rows:
+
+            data.append({
+
+                "State":
+                    row.state_code,
+
+                "Facility Name":
+                    row.facility_name,
+
+                "Facility ID":
+                    row.facility_id,
+
+                "Unit ID":
+                    row.unit_id,
+
+                "Associated Stacks":
+                    row.associated_stacks,
+
+                "Date":
+                    row.date,
+
+                "Year":
+                    row.year,
+
+                "Quarter":
+                    row.quarter,
+
+                "Month":
+                    row.month,
+
+                "Operating Time Count":
+                    row.operating_time_count,
+
+                "Operating Time":
+                    row.operating_time,
+
+                "Gross Load":
+                    row.gross_load,
+
+                "Steam Load":
+                    row.steam_load,
+
+                "Heat Input":
+                    row.heat_input,
+
+                "SO2 Mass":
+                    row.so2_mass,
+
+                "SO2 Rate":
+                    row.so2_rate,
+
+                "CO2 Mass":
+                    row.co2_mass,
+
+                "CO2 Rate":
+                    row.co2_rate,
+
+                "NOx Mass":
+                    row.nox_mass,
+
+                "NOx Rate":
+                    row.nox_rate,
+
+                "Primary Fuel":
+                    row.primary_fuel_type,
+
+                "Secondary Fuel":
+                    row.secondary_fuel_type,
+
+                "Unit Type":
+                    row.unit_type,
+
+                "SO2 Controls":
+                    row.so2_controls,
+
+                "NOx Controls":
+                    row.nox_controls,
+
+                "PM Controls":
+                    row.pm_controls,
+
+                "Hg Controls":
+                    row.hg_controls,
+
+                "Program Code":
+                    row.program_code,
+
+            })
+
+        df = pd.DataFrame(
+            data
+        )
+
+        output = BytesIO()
+
+        df.to_csv(
+            output,
+            index=False
+        )
+
+        output.seek(0)
+
+        return send_file(
+            output,
+            mimetype="text/csv",
+            as_attachment=True,
+            download_name="daily_results.csv",
+        )
+
+    finally:
+
+        session.close()
+

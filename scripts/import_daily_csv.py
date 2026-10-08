@@ -1,94 +1,79 @@
-"""
-Import CAMPD daily emissions CSV files into the daily_records table.
-
-Usage (from the project folder):
-    python scripts/import_daily_csv.py
-
-It reads every file matching data/daily_*.csv, so put your downloads there, e.g.
-    data/daily_2025_part1.csv
-    data/daily_2025_part2.csv
-"""
-import glob
 import os
-import re
-
 import pandas as pd
-from sqlalchemy import text
 
-from models import engine, DailyRecord, BASE_DIR
-
-DATA_PATTERN = os.path.join(BASE_DIR, "data", "daily_*.csv")
-CHUNK_SIZE = 100_000   # rows read and saved at a time, so memory use stays low
-
-# CSV header names that don't simplify to our column name on their own.
-RENAMES = {
-    "state": "state_code",
-    "sum_of_the_operating_time": "operating_time",
-}
-
-# Every column the daily_records table has (except the auto-numbered id).
-TABLE_COLUMNS = [c.name for c in DailyRecord.__table__.columns if c.name != "id"]
+from models import engine
 
 
-def simplify(header):
-    """'Gross Load (MWh)' -> 'gross_load'  (drops the units, makes it snake_case)."""
-    header = re.sub(r"\(.*?\)", "", header)                  # remove "(MWh)"
-    header = re.sub(r"[^a-z0-9]+", "_", header.lower())      # spaces/symbols -> _
-    name = header.strip("_")
-    return RENAMES.get(name, name)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CSV_PATH = os.path.join(BASE_DIR, "Daily Emissions 2026.csv")
 
+CHUNK_SIZE = 50000
 
-def main():
-    files = sorted(glob.glob(DATA_PATTERN))
-    if not files:
-        print(f"No files found matching {DATA_PATTERN}")
-        return
+print("Reading:", CSV_PATH)
 
-    # Start fresh so running the script twice doesn't create duplicate rows.
-    with engine.begin() as conn:
-        conn.execute(text("DELETE FROM daily_records"))
+connection = engine.connect()
+connection.exec_driver_sql("DELETE FROM daily_records")
+connection.commit()
+connection.close()
 
-    total = 0
-    for path in files:
-        print(f"\nImporting {os.path.basename(path)}")
-        file_rows = 0
+total_imported = 0
 
-        for i, chunk in enumerate(pd.read_csv(path, chunksize=CHUNK_SIZE, low_memory=False)):
-            original_headers = list(chunk.columns)
-            chunk.columns = [simplify(h) for h in original_headers]
+for chunk in pd.read_csv(CSV_PATH, chunksize=CHUNK_SIZE):
+    print("Processing", len(chunk), "rows...")
 
-            if i == 0:   # report how headers were matched, once per file
-                print("  CSV header -> database column")
-                for old, new in zip(original_headers, chunk.columns):
-                    mark = "" if new in TABLE_COLUMNS else "   (not stored)"
-                    print(f"    {old!r} -> {new}{mark}")
-                missing = set(TABLE_COLUMNS) - set(chunk.columns) - {"year", "quarter", "month"}
-                if missing:
-                    print(f"  Not in this CSV (will be empty): {sorted(missing)}")
+    chunk["Date"] = pd.to_datetime(chunk["Date"], errors="coerce")
+    chunk = chunk.dropna(subset=["Date"])
 
-            # Work out year / quarter / month from the date.
-            dates = pd.to_datetime(chunk["date"])
-            chunk["date"] = dates.dt.strftime("%Y-%m-%d")
-            chunk["year"] = dates.dt.year
-            chunk["quarter"] = dates.dt.quarter
-            chunk["month"] = dates.dt.month
+    daily = pd.DataFrame({
+        "state_code": chunk["State"],
+        "facility_name": chunk["Facility Name"],
+        "facility_id": pd.to_numeric(chunk["Facility ID"], errors="coerce"),
+        "unit_id": chunk["Unit ID"].astype(str),
+        "associated_stacks": chunk["Associated Stacks"],
 
-            # Keep only columns the table has, then append them to the database.
-            chunk = chunk[[c for c in TABLE_COLUMNS if c in chunk.columns]]
-            chunk.to_sql("daily_records", engine, if_exists="append", index=False)
+        "date": chunk["Date"].dt.strftime("%Y-%m-%d"),
+        "year": chunk["Date"].dt.year,
+        "quarter": ((chunk["Date"].dt.month - 1) // 3) + 1,
+        "month": chunk["Date"].dt.month,
 
-            file_rows += len(chunk)
-            print(f"  ...{file_rows:,} rows saved")
+        "operating_time_count": chunk["Operating Time Count"],
+        "operating_time": chunk["Sum of the Operating Time"],
+        "gross_load": chunk["Gross Load (MWh)"],
+        "steam_load": chunk["Steam Load (1000 lb)"],
+        "heat_input": chunk["Heat Input (mmBtu)"],
 
-        total += file_rows
+        "so2_mass": chunk["SO2 Mass (short tons)"],
+        "so2_rate": chunk["SO2 Rate (lbs/mmBtu)"],
 
-    with engine.connect() as conn:
-        in_db = conn.execute(text("SELECT COUNT(*) FROM daily_records")).scalar()
-        first, last = conn.execute(text("SELECT MIN(date), MAX(date) FROM daily_records")).one()
+        "co2_mass": chunk["CO2 Mass (short tons)"],
+        "co2_rate": chunk["CO2 Rate (short tons/mmBtu)"],
 
-    print(f"\nDone. Read {total:,} rows from {len(files)} file(s); database now holds {in_db:,}.")
-    print(f"Dates covered: {first} to {last}")
+        "nox_mass": chunk["NOx Mass (short tons)"],
+        "nox_rate": chunk["NOx Rate (lbs/mmBtu)"],
 
+        "primary_fuel_type": chunk["Primary Fuel Type"],
+        "secondary_fuel_type": chunk["Secondary Fuel Type"],
+        "unit_type": chunk["Unit Type"],
 
-if __name__ == "__main__":
-    main()
+        "so2_controls": chunk["SO2 Controls"],
+        "nox_controls": chunk["NOx Controls"],
+        "pm_controls": chunk["PM Controls"],
+        "hg_controls": chunk["Hg Controls"],
+        "program_code": chunk["Program Code"]
+    })
+
+    daily.to_sql(
+        "daily_records",
+        engine,
+        if_exists="append",
+        index=False,
+        method="multi",
+        chunksize=1000
+    )
+
+    total_imported = total_imported + len(daily)
+
+    print("Imported", total_imported, "daily records so far.")
+
+print()
+print("Finished! Imported", total_imported, "daily records.")

@@ -1,104 +1,656 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
+
     <meta charset="UTF-8">
-    <title>epaData – Daily Emissions</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Daily EPA Emissions Data</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+
 </head>
+
 <body>
 
     <h1>epaData</h1>
-    <h2>Daily Emissions Explorer</h2>
-    <p><a href="{{ url_for('main.home') }}">Annual data</a> | EPA CAMPD Daily Emissions (unit level)</p>
 
-    <form method="GET" action="{{ url_for('main.daily') }}">
-        <label for="facility">Facility:</label>
-        <input type="text" id="facility" name="facility" value="{{ facility }}">
+    <h2>Daily EPA Emissions Data</h2>
 
-        <label for="state">State:</label>
-        <input type="text" id="state" name="state" value="{{ state }}" size="3">
+    <p>
 
-        <label for="year">Year:</label>
-        <input type="number" id="year" name="year" value="{{ year or '' }}">
+        <a href="{{ url_for('main.index') }}">
+            Annual Emissions
+        </a>
+
+        |
+
+        <a href="{{ url_for('main.upload') }}">
+            Upload Data
+        </a>
+
+    </p>
+
+    <form
+        method="get"
+        action="{{ url_for('main.daily') }}"
+    >
+
+        <label for="facility">
+            Facility:
+        </label>
+
+        <input
+            type="text"
+            id="facility"
+            name="facility"
+            value="{{ facility }}"
+            placeholder="Facility name"
+        >
+
+        <div class="state-dropdown">
+
+            <details>
+
+                <summary>
+
+                    {% if states %}
+
+                        {{ states|length }} state(s) selected
+
+                    {% else %}
+
+                        Select states
+
+                    {% endif %}
+
+                </summary>
+
+                <div class="state-options">
+
+                    {% for s in available_states %}
+
+                        <label class="state-option">
+
+                            <input
+                                type="checkbox"
+                                name="state"
+                                value="{{ s }}"
+                                {% if s in states %}checked{% endif %}
+                            >
+
+                            {{ s }}
+
+                        </label>
+
+                    {% endfor %}
+
+                </div>
+
+            </details>
+
+        </div>
+
+        <label for="year">
+            Year:
+        </label>
+
+        <input
+            type="number"
+            id="year"
+            name="year"
+            value="{{ year }}"
+            placeholder="2026"
+            min="1900"
+            max="2100"
+        >
+
+        <label for="quarter">
+            Quarter:
+        </label>
+
+        <select
+            id="quarter"
+            name="quarter"
+        >
+
+            <option value="">
+                All
+            </option>
+
+            <option
+                value="1"
+                {% if quarter == '1' %}selected{% endif %}
+            >
+                Q1
+            </option>
+
+            <option
+                value="2"
+                {% if quarter == '2' %}selected{% endif %}
+            >
+                Q2
+            </option>
+
+            <option
+                value="3"
+                {% if quarter == '3' %}selected{% endif %}
+            >
+                Q3
+            </option>
+
+            <option
+                value="4"
+                {% if quarter == '4' %}selected{% endif %}
+            >
+                Q4
+            </option>
+
+        </select>
+
+        <label for="month">
+            Month:
+        </label>
+
+        <select
+            id="month"
+            name="month"
+        >
+
+            <option value="">
+                All
+            </option>
+
+            {% for m in range(1, 13) %}
+
+                <option
+                    value="{{ m }}"
+                    {% if month == m|string %}selected{% endif %}
+                >
+                    {{ m }}
+                </option>
+
+            {% endfor %}
+
+        </select>
+
+        <label for="day">
+            Day:
+        </label>
+
+        <input
+            type="date"
+            id="day"
+            name="day"
+            value="{{ day }}"
+        >
+
+        <label for="fuel">
+            Primary Fuel:
+        </label>
+
+        <select
+            id="fuel"
+            name="fuel"
+        >
+
+            <option value="">
+                All
+            </option>
+
+            {% for f in available_fuels %}
+
+                <option
+                    value="{{ f }}"
+                    {% if fuel == f %}selected{% endif %}
+                >
+                    {{ f }}
+                </option>
+
+            {% endfor %}
+
+        </select>
+
+        <label for="co2_min">
+            Minimum CO₂:
+        </label>
+
+        <input
+            type="number"
+            id="co2_min"
+            name="co2_min"
+            value="{{ co2_min }}"
+            placeholder="e.g. 1000"
+            step="any"
+        >
+
+        <label for="view">
+            View:
+        </label>
+
+        <select
+            id="view"
+            name="view"
+        >
+
+            <option
+                value="day"
+                {% if view == 'day' %}selected{% endif %}
+            >
+                Daily
+            </option>
+
+            <option
+                value="month"
+                {% if view == 'month' %}selected{% endif %}
+            >
+                Monthly
+            </option>
+
+            <option
+                value="quarter"
+                {% if view == 'quarter' %}selected{% endif %}
+            >
+                Quarterly
+            </option>
+
+            <option
+                value="year"
+                {% if view == 'year' %}selected{% endif %}
+            >
+                Yearly
+            </option>
+
+        </select>
 
         <br><br>
 
-        <label for="quarter">Quarter:</label>
-        <select id="quarter" name="quarter">
-            <option value="">Any</option>
-            {% for q in range(1, 5) %}
-            <option value="{{ q }}" {% if quarter == q %}selected{% endif %}>Q{{ q }}</option>
-            {% endfor %}
-        </select>
+        <label for="description">
+            Describe your search:
+        </label>
 
-        {% set month_names = ["January", "February", "March", "April", "May", "June", "July",
-                              "August", "September", "October", "November", "December"] %}
-        <label for="month">Month:</label>
-        <select id="month" name="month">
-            <option value="">Any</option>
-            {% for m in range(1, 13) %}
-            <option value="{{ m }}" {% if month == m %}selected{% endif %}>{{ month_names[m - 1] }}</option>
-            {% endfor %}
-        </select>
+        <input
+            type="text"
+            id="description"
+            name="description"
+            value="{{ description }}"
+            placeholder="e.g. Find coal units in Kentucky in 2026"
+            size="55"
+        >
 
-        <label for="day">Day:</label>
-        <input type="date" id="day" name="day" value="{{ day }}">
+        <button type="submit">
+            Search
+        </button>
 
-        <label for="view">Show totals per:</label>
-        <select id="view" name="view">
-            {% for v in ["day", "month", "quarter", "year"] %}
-            <option value="{{ v }}" {% if view == v %}selected{% endif %}>{{ v|capitalize }}</option>
-            {% endfor %}
-        </select>
+        <a href="{{ url_for('main.daily') }}">
+            Clear
+        </a>
 
-        <button type="submit">Search</button>
-        <a href="{{ url_for('main.daily') }}">Clear</a>
     </form>
 
-    <p>{{ "{:,}".format(total) }} result(s) — page {{ page }} of {{ pages }}</p>
-
-    <table>
-        <tr>
-            <th>{{ view|capitalize }}</th>
-            <th>Facility</th>
-            <th>State</th>
-            <th>Unit</th>
-            <th>Days</th>
-            <th>Operating Time (hr)</th>
-            <th>Gross Load (MWh)</th>
-            <th>CO₂ (short tons)</th>
-            <th>SO₂ (short tons)</th>
-            <th>NOx (short tons)</th>
-        </tr>
-        {% for r in rows %}
-        <tr>
-            <td>
-                {% if view == "day" %}{{ r.date }}
-                {% elif view == "month" %}{{ month_names[r.month - 1] }} {{ r.year }}
-                {% elif view == "quarter" %}Q{{ r.quarter }} {{ r.year }}
-                {% else %}{{ r.year }}{% endif %}
-            </td>
-            <td>{{ r.facility_name }}</td>
-            <td>{{ r.state_code }}</td>
-            <td>{{ r.unit_id }}</td>
-            <td>{{ r.days }}</td>
-            <td>{{ "{:,.1f}".format(r.operating_time or 0) }}</td>
-            <td>{{ "{:,.0f}".format(r.gross_load) if r.gross_load is not none else "—" }}</td>
-            <td>{{ "{:,.1f}".format(r.co2_mass) if r.co2_mass is not none else "—" }}</td>
-            <td>{{ "{:,.3f}".format(r.so2_mass) if r.so2_mass is not none else "—" }}</td>
-            <td>{{ "{:,.2f}".format(r.nox_mass) if r.nox_mass is not none else "—" }}</td>
-        </tr>
-        {% endfor %}
-    </table>
-
     <p>
-        {% if page > 1 %}
-        <a href="{{ url_for('main.daily', **dict(request.args.to_dict(), page=page - 1)) }}">&larr; Previous</a>
-        {% endif %}
-        {% if page < pages %}
-        <a href="{{ url_for('main.daily', **dict(request.args.to_dict(), page=page + 1)) }}">Next &rarr;</a>
-        {% endif %}
+        Found {{ total }} result(s).
     </p>
 
+    {% if total > 0 %}
+
+        <p>
+
+            <a
+                href="{{ url_for(
+                    'main.download_daily',
+                    facility=facility,
+                    state=states,
+                    year=year,
+                    quarter=quarter,
+                    month=month,
+                    day=day,
+                    fuel=fuel,
+                    co2_min=co2_min,
+                    description=description
+                ) }}"
+            >
+                Download Results as CSV
+            </a>
+
+        </p>
+
+        <p>
+            Sort by:
+        </p>
+
+        <div class="sort-links">
+
+            <a
+                href="{{ url_for(
+                    'main.daily',
+                    facility=facility,
+                    state=states,
+                    year=year,
+                    quarter=quarter,
+                    month=month,
+                    day=day,
+                    fuel=fuel,
+                    co2_min=co2_min,
+                    view=view,
+                    description=description,
+                    sort='date',
+                    direction='desc'
+                ) }}"
+            >
+                Date ↓
+            </a>
+
+            |
+
+            <a
+                href="{{ url_for(
+                    'main.daily',
+                    facility=facility,
+                    state=states,
+                    year=year,
+                    quarter=quarter,
+                    month=month,
+                    day=day,
+                    fuel=fuel,
+                    co2_min=co2_min,
+                    view=view,
+                    description=description,
+                    sort='facility',
+                    direction='asc'
+                ) }}"
+            >
+                Facility A-Z
+            </a>
+
+            |
+
+            <a
+                href="{{ url_for(
+                    'main.daily',
+                    facility=facility,
+                    state=states,
+                    year=year,
+                    quarter=quarter,
+                    month=month,
+                    day=day,
+                    fuel=fuel,
+                    co2_min=co2_min,
+                    view=view,
+                    description=description,
+                    sort='co2',
+                    direction='desc'
+                ) }}"
+            >
+                CO₂ ↓
+            </a>
+
+            |
+
+            <a
+                href="{{ url_for(
+                    'main.daily',
+                    facility=facility,
+                    state=states,
+                    year=year,
+                    quarter=quarter,
+                    month=month,
+                    day=day,
+                    fuel=fuel,
+                    co2_min=co2_min,
+                    view=view,
+                    description=description,
+                    sort='nox',
+                    direction='desc'
+                ) }}"
+            >
+                NOx ↓
+            </a>
+
+            |
+
+            <a
+                href="{{ url_for(
+                    'main.daily',
+                    facility=facility,
+                    state=states,
+                    year=year,
+                    quarter=quarter,
+                    month=month,
+                    day=day,
+                    fuel=fuel,
+                    co2_min=co2_min,
+                    view=view,
+                    description=description,
+                    sort='so2',
+                    direction='desc'
+                ) }}"
+            >
+                SO₂ ↓
+            </a>
+
+        </div>
+
+        <table>
+
+            <thead>
+
+                <tr>
+
+                    <th>State</th>
+                    <th>Facility</th>
+                    <th>Unit</th>
+
+                    {% if view == "day" %}
+
+                        <th>Date</th>
+
+                    {% elif view == "month" %}
+
+                        <th>Year</th>
+                        <th>Month</th>
+
+                    {% elif view == "quarter" %}
+
+                        <th>Year</th>
+                        <th>Quarter</th>
+
+                    {% elif view == "year" %}
+
+                        <th>Year</th>
+
+                    {% endif %}
+
+                    <th>Days</th>
+                    <th>Operating Time</th>
+                    <th>Gross Load</th>
+                    <th>Heat Input</th>
+                    <th>CO₂ Mass</th>
+                    <th>SO₂ Mass</th>
+                    <th>NOx Mass</th>
+
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+                {% for row in rows %}
+
+                    <tr>
+
+                        <td>
+                            {{ row.state_code }}
+                        </td>
+
+                        <td>
+                            {{ row.facility_name }}
+                        </td>
+
+                        <td>
+                            {{ row.unit_id }}
+                        </td>
+
+                        {% if view == "day" %}
+
+                            <td>
+                                {{ row.date }}
+                            </td>
+
+                        {% elif view == "month" %}
+
+                            <td>
+                                {{ row.year }}
+                            </td>
+
+                            <td>
+                                {{ row.month }}
+                            </td>
+
+                        {% elif view == "quarter" %}
+
+                            <td>
+                                {{ row.year }}
+                            </td>
+
+                            <td>
+                                {{ row.quarter }}
+                            </td>
+
+                        {% elif view == "year" %}
+
+                            <td>
+                                {{ row.year }}
+                            </td>
+
+                        {% endif %}
+
+                        <td>
+                            {{ row.days }}
+                        </td>
+
+                        <td>
+                            {{ "%.2f"|format(
+                                row.operating_time or 0
+                            ) }}
+                        </td>
+
+                        <td>
+                            {{ "%.2f"|format(
+                                row.gross_load or 0
+                            ) }}
+                        </td>
+
+                        <td>
+                            {{ "%.2f"|format(
+                                row.heat_input or 0
+                            ) }}
+                        </td>
+
+                        <td>
+                            {{ "%.2f"|format(
+                                row.co2_mass or 0
+                            ) }}
+                        </td>
+
+                        <td>
+                            {{ "%.2f"|format(
+                                row.so2_mass or 0
+                            ) }}
+                        </td>
+
+                        <td>
+                            {{ "%.2f"|format(
+                                row.nox_mass or 0
+                            ) }}
+                        </td>
+
+                    </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+        {% if total_pages > 1 %}
+
+            <div class="pagination">
+
+                {% if page > 1 %}
+
+                    <a
+                        href="{{ url_for(
+                            'main.daily',
+                            facility=facility,
+                            state=states,
+                            year=year,
+                            quarter=quarter,
+                            month=month,
+                            day=day,
+                            fuel=fuel,
+                            co2_min=co2_min,
+                            view=view,
+                            description=description,
+                            sort=sort,
+                            direction=direction,
+                            page=page - 1
+                        ) }}"
+                    >
+                        Previous
+                    </a>
+
+                {% endif %}
+
+                <span>
+                    Page {{ page }} of {{ total_pages }}
+                </span>
+
+                {% if page < total_pages %}
+
+                    <a
+                        href="{{ url_for(
+                            'main.daily',
+                            facility=facility,
+                            state=states,
+                            year=year,
+                            quarter=quarter,
+                            month=month,
+                            day=day,
+                            fuel=fuel,
+                            co2_min=co2_min,
+                            view=view,
+                            description=description,
+                            sort=sort,
+                            direction=direction,
+                            page=page + 1
+                        ) }}"
+                    >
+                        Next
+                    </a>
+
+                {% endif %}
+
+            </div>
+
+        {% endif %}
+
+    {% else %}
+
+        <p>
+            No results found.
+        </p>
+
+    {% endif %}
+
 </body>
+
 </html>

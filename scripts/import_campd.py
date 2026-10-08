@@ -1,65 +1,62 @@
 import os
-import requests
 import pandas as pd
-from dotenv import load_dotenv
 from sqlalchemy.orm import sessionmaker
+
 from models import engine, AnnualRecord
 
-load_dotenv()
 
-api_key = os.getenv("EPA_API_KEY")
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CSV_PATH = os.path.join(BASE_DIR, "CAMPD_2025.csv")
 
-url = "https://api.epa.gov/easey/emissions-mgmt/emissions/apportioned/annual"
 
-params = {
-    "api_key": api_key,
-    "year": 2023,
-    "page": 1,
-    "perPage": 50
-}
+print("Reading:", CSV_PATH)
 
-response = requests.get(url, params=params)
+df = pd.read_csv(CSV_PATH)
 
-print("Status code:", response.status_code)
+print(f"Found {len(df)} CSV records.")
+print("Columns:")
+print(df.columns.tolist())
 
-if response.ok:
-    data = response.json()
-    records = data["items"]
 
-    df = pd.DataFrame(records)
+Session = sessionmaker(bind=engine)
+session = Session()
 
-    print(f"\nRetrieved {len(df)} EPA records.")
+# Clear existing annual records before importing
+session.query(AnnualRecord).delete()
 
-    Session = sessionmaker(bind=engine)
-    session = Session()
+for _, row in df.iterrows():
 
-    for _, row in df.iterrows():
-        record = AnnualRecord(
-            state_code=row.get("stateCode"),
-            facility_name=row.get("facilityName"),
-            facility_id=row.get("facilityId"),
-            unit_id=row.get("unitId"),
-            year=row.get("year"),
-            operating_time=row.get("sumOpTime"),
-            gross_load=row.get("grossLoad"),
-            heat_input=row.get("heatInput"),
-            so2_mass=row.get("so2Mass"),
-            so2_rate=row.get("so2Rate"),
-            co2_mass=row.get("co2Mass"),
-            co2_rate=row.get("co2Rate"),
-            nox_mass=row.get("noxMass"),
-            nox_rate=row.get("noxRate"),
-            primary_fuel=row.get("primaryFuelInfo"),
-            unit_type=row.get("unitType")
-        )
+    record = AnnualRecord(
+        state_code=row.get("State"),
+        facility_name=row.get("Facility Name"),
+        facility_id=row.get("Facility ID"),
+        unit_id=str(row.get("Unit ID")) if pd.notna(row.get("Unit ID")) else None,
+        year=row.get("Year"),
 
-        session.add(record)
+        operating_time=row.get("Sum of the Operating Time"),
+        gross_load=row.get("Gross Load (MWh)"),
+        heat_input=row.get("Heat Input (mmBtu)"),
 
-    session.commit()
-    session.close()
+        so2_mass=row.get("SO2 Mass (short tons)"),
+        so2_rate=row.get("SO2 Rate (lbs/mmBtu)"),
 
-    print("EPA records successfully saved to SQLite!")
+        co2_mass=row.get("CO2 Mass (short tons)"),
+        co2_rate=row.get("CO2 Rate (short tons/mmBtu)"),
 
-else:
-    print("EPA API request failed.")
-    print(response.text)
+        nox_mass=row.get("NOx Mass (short tons)"),
+        nox_rate=row.get("NOx Rate (lbs/mmBtu)"),
+
+        primary_fuel=row.get("Primary Fuel Type"),
+        unit_type=row.get("Unit Type")
+    )
+
+    session.add(record)
+
+
+session.commit()
+
+count = session.query(AnnualRecord).count()
+
+print(f"Successfully imported {count} annual records.")
+
+session.close()
