@@ -243,6 +243,12 @@ def build_daily_query(
 
 
 @main.route("/")
+def home():
+
+    return render_template("home.html")
+
+
+@main.route("/annual")
 def index():
 
     session = Session()

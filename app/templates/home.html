@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>epaData</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+    <h1>epaData</h1>
+    <h2>EPA Power Plant Emissions Data</h2>
+
+    <nav class="home-tabs" aria-label="Main navigation">
+        <a href="{{ url_for('main.index') }}">Annual Emissions</a>
+        <a href="{{ url_for('main.daily') }}">Daily Data</a>
+        <a href="{{ url_for('main.upload') }}">Upload Data</a>
+    </nav>
+
+    <main class="home-main">
+        <p class="home-eyebrow">CS 396 Project</p>
+        <h3>Explore emissions data from power plants across the U.S.</h3>
+        <p class="home-description">
+            epaData brings annual and daily EPA emissions records into one place.
+            Find facilities, explore emissions over time, and work with the data
+            without having to search through large CSV files by hand.
+        </p>
+
+        <section class="home-features" aria-label="Available pages">
+            <article>
+                <h4>Annual emissions</h4>
+                <p>Filter yearly records by facility, state, year, fuel type, or CO2 emissions. Sort and download matching results.</p>
+                <a href="{{ url_for('main.index') }}">Open annual data</a>
+            </article>
+            <article>
+                <h4>Daily emissions</h4>
+                <p>Review day-level records and narrow results using facility, location, date, fuel, and emissions filters.</p>
+                <a href="{{ url_for('main.daily') }}">Open daily data</a>
+            </article>
+            <article>
+                <h4>Upload data</h4>
+                <p>Add annual or daily emissions records by uploading a CSV file that matches the required format.</p>
+                <a href="{{ url_for('main.upload') }}">Go to CSV upload</a>
+            </article>
+        </section>
+    </main>
+</body>
+
+</html>
