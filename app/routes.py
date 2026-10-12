@@ -32,6 +32,7 @@ def float_or_none(value):
 
 def parse_description(description):
 
+    original = description
     description = description.lower()
 
     states = {
@@ -63,17 +64,22 @@ def parse_description(description):
         "year": None,
         "co2_min": None,
     }
+   
+    for state_name in sorted(states, key=len, reverse=True):
 
-    for state_name, state_code in states.items():
+        if state_name in description:
 
-        if (
-            state_name in description
-            or f" {state_code.lower()} "
-            in f" {description} "
-        ):
-
-            result["state"] = state_code
+            result["state"] = states[state_name]
             break
+
+    if not result["state"]:
+
+        for state_code in states.values():
+
+            if re.search(rf"\b{state_code}\b", original):
+
+                result["state"] = state_code
+                break
 
     fuel_keywords = {
         "natural gas": "Natural Gas",
