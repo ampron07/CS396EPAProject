@@ -47,6 +47,64 @@
 
         <p class="result-count">Showing {{ rows|length }} of {{ total_display }} substance records</p>
 
+        <section class="traci-analysis" aria-labelledby="traci-analysis-title">
+            <div class="traci-analysis-intro">
+                <p class="page-eyebrow">DATA EXPLORER</p>
+                <h3 id="traci-analysis-title">Compare impact factors</h3>
+                <p>Rank substances by a selected TRACI characterization factor. This compares factors per kilogram; it does not show actual emissions, exposure, or total environmental impact.</p>
+            </div>
+
+            <form class="traci-factor-form" method="get" action="{{ url_for('main.traci') }}">
+                {% if search %}
+                    <input type="hidden" name="search" value="{{ search }}">
+                {% endif %}
+                <div>
+                    <label for="factor">Impact factor</label>
+                    <select id="factor" name="factor">
+                        {% for attribute, title, context, unit in factor_options %}
+                            <option value="{{ attribute }}" {% if attribute == selected_factor %}selected{% endif %}>
+                                {{ title }}{% if context %} — {{ context }}{% endif %}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit">Update chart</button>
+            </form>
+
+            {% if top_factors %}
+                <div class="traci-chart-heading">
+                    <div>
+                        <h4>Top 10 substances: {{ selected_factor_info.title }}</h4>
+                        <p>{{ selected_factor_info.context }}{% if selected_factor_info.unit %} · {{ selected_factor_info.unit }}{% endif %}</p>
+                    </div>
+                    <span>{{ reported_factor_count }} substances have a reported value</span>
+                </div>
+                <ol class="traci-bar-chart" aria-label="Top ten substances by selected impact factor">
+                    {% for item in top_factors %}
+                        <li>
+                            <div class="traci-bar-label">
+                                <span class="traci-rank">{{ item.rank }}</span>
+                                <span class="traci-bar-substance">
+                                    <strong>{{ item.substance_name }}</strong>
+                                    <small>CAS {{ item.cas_number or "not listed" }}</small>
+                                </span>
+                                <span class="traci-bar-value">{{ item.value_display }}</span>
+                            </div>
+                            <div
+                                class="traci-bar-track"
+                                role="img"
+                                aria-label="Rank {{ item.rank }}: {{ item.substance_name }}, factor value {{ item.value_display }}"
+                            >
+                                <span class="traci-bar-fill" style="width: {{ item.bar_width }}%"></span>
+                            </div>
+                        </li>
+                    {% endfor %}
+                </ol>
+            {% else %}
+                <p class="traci-chart-empty">No substances have a reported value for this factor.</p>
+            {% endif %}
+        </section>
+
         <div class="table-wrap traci-table-wrap">
             <table class="traci-table">
                 <thead>

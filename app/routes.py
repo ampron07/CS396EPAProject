@@ -48,6 +48,12 @@ TRACI_COLUMN_GUIDE = (
     ("Photochemical-smog potential", "Air emissions", "kg O3-eq / kg substance"),
 )
 
+TRACI_NUMERIC_FACTORS = tuple(
+    (attribute, guide[0], guide[1], guide[2])
+    for (attribute, _, value_type), guide in zip(TRACI_COLUMNS, TRACI_COLUMN_GUIDE)
+    if value_type == "number"
+)
+
 
 def int_or_none(value):
     try:
@@ -1359,6 +1365,60 @@ def traci():
 
     try:
         search = request.args.get("search", "").strip()
+        factor_options = {
+            attribute: {
+                "attribute": attribute,
+                "title": title,
+                "context": context,
+                "unit": unit,
+            }
+            for attribute, title, context, unit in TRACI_NUMERIC_FACTORS
+        }
+        selected_factor = request.args.get(
+            "factor",
+            "photochemical_oxidation_air",
+        )
+        if selected_factor not in factor_options:
+            selected_factor = "photochemical_oxidation_air"
+
+        factor_column = getattr(TraciRecord, selected_factor)
+        reported_factor_count = (
+            session.query(func.count(factor_column))
+            .scalar()
+            or 0
+        )
+        top_factor_rows = (
+            session.query(
+                TraciRecord.substance_name,
+                TraciRecord.formatted_cas_number,
+                TraciRecord.cas_number,
+                factor_column,
+            )
+            .filter(factor_column.isnot(None))
+            .order_by(factor_column.desc(), TraciRecord.substance_name)
+            .limit(10)
+            .all()
+        )
+        maximum_factor = max(
+            (abs(float(row[3])) for row in top_factor_rows),
+            default=0,
+        )
+        top_factors = [
+            {
+                "rank": rank,
+                "substance_name": row.substance_name,
+                "cas_number": row.formatted_cas_number or row.cas_number,
+                "value": float(row[3]),
+                "value_display": f"{float(row[3]):.4g}",
+                "bar_width": (
+                    max(1, abs(float(row[3])) / maximum_factor * 100)
+                    if maximum_factor
+                    else 0
+                ),
+            }
+            for rank, row in enumerate(top_factor_rows, start=1)
+        ]
+
         page = max(1, int_or_none(request.args.get("page")) or 1)
 
         query = session.query(TraciRecord)
@@ -1396,6 +1456,11 @@ def traci():
                 for (attribute, label), guide in zip(columns, TRACI_COLUMN_GUIDE)
             ],
             search=search,
+            factor_options=TRACI_NUMERIC_FACTORS,
+            selected_factor=selected_factor,
+            selected_factor_info=factor_options[selected_factor],
+            reported_factor_count=reported_factor_count,
+            top_factors=top_factors,
             total=total,
             total_display=f"{total:,}",
             page=page,

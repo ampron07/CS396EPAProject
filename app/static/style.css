@@ -436,6 +436,172 @@ h2 + p a:hover {
     border-radius: 8px;
 }
 
+.traci-analysis {
+    margin: 22px 0;
+    padding: 22px 24px;
+    background: #ffffff;
+    border: 1px solid #dce7ed;
+    border-radius: 9px;
+    box-shadow: 0 3px 12px rgba(30, 50, 70, 0.06);
+}
+
+.traci-analysis-intro .page-eyebrow {
+    margin: 0 0 6px;
+}
+
+.traci-analysis-intro h3 {
+    margin: 0 0 7px;
+    color: #245b82;
+    font-size: 20px;
+}
+
+.traci-analysis-intro > p:last-child {
+    max-width: 900px;
+    margin: 0;
+    color: #526773;
+    font-size: 13px;
+}
+
+.traci-factor-form {
+    display: flex;
+    align-items: end;
+    gap: 12px;
+    margin: 16px 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+}
+
+.traci-factor-form > div {
+    display: grid;
+    flex: 1;
+    gap: 6px;
+    max-width: 620px;
+}
+
+.traci-factor-form label {
+    color: #455a64;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.traci-factor-form select {
+    width: 100%;
+}
+
+.traci-factor-form button {
+    white-space: nowrap;
+}
+
+.traci-chart-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 14px;
+    margin: 20px 0 10px;
+}
+
+.traci-chart-heading h4 {
+    margin: 0 0 4px;
+    color: #294b60;
+    font-size: 15px;
+}
+
+.traci-chart-heading p,
+.traci-chart-heading > span {
+    margin: 0;
+    color: #60717d;
+    font-size: 12px;
+}
+
+.traci-chart-heading > span {
+    text-align: right;
+}
+
+.traci-bar-chart {
+    display: grid;
+    gap: 11px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.traci-bar-chart li {
+    min-width: 0;
+}
+
+.traci-bar-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+    font-size: 12px;
+}
+
+.traci-rank {
+    display: grid;
+    flex: 0 0 24px;
+    width: 24px;
+    height: 24px;
+    place-items: center;
+    color: #245b82;
+    background: #edf4f8;
+    border-radius: 50%;
+    font-weight: 700;
+}
+
+.traci-bar-substance {
+    display: grid;
+    flex: 1;
+    min-width: 0;
+    gap: 2px;
+}
+
+.traci-bar-substance strong {
+    overflow: hidden;
+    color: #263238;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.traci-bar-substance small {
+    color: #60717d;
+    font-size: 10px;
+}
+
+.traci-bar-value {
+    color: #294b60;
+    font-family: "Cascadia Code", Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.traci-bar-track {
+    height: 10px;
+    margin-left: 34px;
+    overflow: hidden;
+    background: #edf2f5;
+    border-radius: 999px;
+}
+
+.traci-bar-fill {
+    display: block;
+    min-width: 2px;
+    height: 100%;
+    background: linear-gradient(90deg, #3579a8, #64a2c6);
+    border-radius: inherit;
+}
+
+.traci-chart-empty {
+    margin: 14px 0 0;
+    padding: 14px;
+    color: #60717d;
+    background: #f5f8fa;
+    border-radius: 6px;
+}
+
 .traci-clear-search {
     display: inline-flex;
     align-items: center;

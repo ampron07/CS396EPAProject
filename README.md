@@ -101,7 +101,7 @@ To stop the local server, press **Ctrl+C** in the terminal.
 
 **Daily Data:** Search daily emissions using the available filters, including date-related options. View and compare records or grouped totals. The page also graphs filtered CO₂ totals over time using the selected daily, monthly, quarterly, or yearly view.
 
-**TRACI 2.2 Data:** Search the substances by name or CAS number and view their impact characterization factors.
+**TRACI 2.2 Data:** Search substances by name or CAS number, then use the impact-factor selector to chart the ten substances with the highest reported values for a factor. The chart compares TRACI characterization factors per kilogram of substance; it does not represent actual emissions, exposure, or total environmental impacts.
 
 **Description Search:** Type a short search description using recognized keywords, such as `coal Kentucky 2025 high CO2`. The application uses those keywords to fill in search conditions. This is keyword-based, not unrestricted natural-language understanding.
 
