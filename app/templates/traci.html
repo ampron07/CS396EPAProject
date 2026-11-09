@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TRACI 2.2 Data - epaData</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+    <h1>epaData</h1>
+    <h2>TRACI 2.2 Substance Impact Factors</h2>
+
+    <nav class="page-nav" aria-label="Main navigation">
+        <a href="{{ url_for('main.home') }}">Home</a>
+        <a href="{{ url_for('main.index') }}">Annual Emissions</a>
+        <a href="{{ url_for('main.daily') }}">Daily Data</a>
+        <a href="{{ url_for('main.upload') }}">Upload Data</a>
+        <span class="current-page" aria-current="page">TRACI 2.2</span>
+    </nav>
+
+    <main class="page-content traci-content">
+        <section class="page-intro">
+            <p class="page-eyebrow">EPA IMPACT ASSESSMENT DATA</p>
+            <h3>TRACI 2.2 characterization factors</h3>
+            <p>Search substances by name or CAS number. Each row describes the estimated environmental or human-health impact associated with releasing one kilogram of a substance into the specified environment.</p>
+            <details class="traci-reading-guide">
+                <summary>How to read this table</summary>
+                <ul>
+                    <li><strong>CAS registry number</strong> is a standard identifier for a chemical substance.</li>
+                    <li><strong>Factor</strong> columns show impact per kilogram of substance for the release type and environment in the column heading. These are characterization factors, not measured facility emissions.</li>
+                    <li><strong>Equivalent (eq)</strong> expresses an impact relative to a reference substance, such as CO2 for climate change.</li>
+                    <li><strong>CTUeco</strong> is the ecotoxicity factor unit. <strong>CTUcancer</strong> and <strong>CTUnoncancer</strong> are human-health factor units.</li>
+                    <li><strong>Data flags</strong> describe the source factor's data category. A dash means the source workbook has no value.</li>
+                    <li>Hover over a column heading to see its original TRACI workbook label.</li>
+                </ul>
+            </details>
+        </section>
+
+        <form class="traci-search" method="get" action="{{ url_for('main.traci') }}">
+            <label for="search">Substance or CAS number</label>
+            <input id="search" name="search" type="text" value="{{ search }}" placeholder="e.g. formaldehyde or 50-00-0">
+            <button type="submit">Search</button>
+            <a class="traci-clear-search" href="{{ url_for('main.traci') }}" aria-label="Clear search and show all substances">Clear search</a>
+        </form>
+
+        <p class="result-count">Showing {{ rows|length }} of {{ total_display }} substance records</p>
+
+        <div class="table-wrap traci-table-wrap">
+            <table class="traci-table">
+                <thead>
+                    <tr>
+                        {% for header in headers %}
+                            <th scope="col" title="{{ header.source_label }}">
+                                <span class="traci-header-title">{{ header.title }}</span>
+                                <span class="traci-header-context">{{ header.context }}</span>
+                                {% if header.unit %}
+                                    <span class="traci-header-unit">{{ header.unit }}</span>
+                                {% endif %}
+                            </th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                        <tr>
+                            {% for attribute, label in columns %}
+                                <td>{% set value = row|attr(attribute) %}{{ value if value is not none else "—" }}</td>
+                            {% endfor %}
+                        </tr>
+                    {% else %}
+                        <tr><td class="empty-state" colspan="{{ columns|length }}">No TRACI records found.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if total_pages > 1 %}
+            <nav class="pagination" aria-label="TRACI result pages">
+                {% if page > 1 %}
+                    <a href="{{ url_for('main.traci', search=search, page=page - 1) }}">Previous</a>
+                {% endif %}
+                <span>Page {{ page }} of {{ total_pages }}</span>
+                {% if page < total_pages %}
+                    <a href="{{ url_for('main.traci', search=search, page=page + 1) }}">Next</a>
+                {% endif %}
+            </nav>
+        {% endif %}
+    </main>
+</body>
+</html>

@@ -6,7 +6,8 @@ __pycache__/
 *.pyc
 *.db
 # Downloaded EPA data files (too large for GitHub)
-data/
+data/*
+!data/traci_2_2.xlsx
 
 Daily Emissions 2026.csv
 

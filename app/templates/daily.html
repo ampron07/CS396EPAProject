@@ -25,27 +25,34 @@
 
     <h2>Daily EPA Emissions Data</h2>
 
-    <p>
-
+    <nav class="page-nav" aria-label="Main navigation">
         <a href="{{ url_for('main.home') }}">
             Home
         </a>
-
-        |
 
         <a href="{{ url_for('main.index') }}">
             Annual Emissions
         </a>
 
-        |
+        <a href="{{ url_for('main.traci') }}">
+            TRACI 2.2
+        </a>
 
         <a href="{{ url_for('main.upload') }}">
             Upload Data
         </a>
+        <span class="current-page" aria-current="page">Daily Data</span>
+    </nav>
 
-    </p>
+    <main class="page-content daily-content">
+        <section class="page-intro">
+            <p class="page-eyebrow">EPA DATA EXPLORER</p>
+            <h3>Daily emissions</h3>
+            <p>Filter daily records and track CO₂ emissions across time.</p>
+        </section>
 
     <form
+        class="daily-search"
         method="get"
         action="{{ url_for('main.daily') }}"
     >
@@ -302,9 +309,79 @@
 
     </form>
 
-    <p>
-        Found {{ total }} result(s).
-    </p>
+    <div class="result-summary" role="status" aria-live="polite">
+        <strong>{{ total }}</strong>
+        <span>matching record(s)</span>
+        <span class="result-page">Page {{ page }} of {{ total_pages }}</span>
+    </div>
+
+    <section class="emissions-chart" aria-labelledby="emissions-chart-title">
+        <div class="emissions-chart-heading">
+            <div>
+                <h3 id="emissions-chart-title">CO₂ emissions over time</h3>
+                <p class="daily-download">
+                    Total CO₂ emissions by {{ emissions_chart.period }}
+                    for the selected filters.
+                </p>
+            </div>
+        </div>
+
+        {% if emissions_chart.bars %}
+            <div class="emissions-chart-scroll">
+                <svg
+                    class="emissions-chart-svg"
+                    viewBox="0 0 960 {{ emissions_chart.height }}"
+                    role="img"
+                    aria-labelledby="emissions-chart-title emissions-chart-description"
+                >
+                    <desc id="emissions-chart-description">
+                        CO₂ emissions in short tons, grouped by {{ emissions_chart.period }}.
+                        The highest value is {{ "%.2f"|format(emissions_chart.max) }} short tons.
+                    </desc>
+
+                    {% for tick in emissions_chart.ticks %}
+                        <line
+                            class="chart-gridline"
+                            x1="72"
+                            y1="{{ tick.y }}"
+                            x2="940"
+                            y2="{{ tick.y }}"
+                        ></line>
+                        <text
+                            class="chart-axis-label"
+                            x="64"
+                            y="{{ tick.y + 4 }}"
+                            text-anchor="end"
+                        >{{ tick.value }}</text>
+                    {% endfor %}
+
+                    {% for bar in emissions_chart.bars %}
+                        <rect
+                            class="chart-bar"
+                            x="{{ bar.x }}"
+                            y="{{ bar.y }}"
+                            width="{{ bar.width }}"
+                            height="{{ bar.height }}"
+                            rx="2"
+                        >
+                            <title>{{ bar.label }}: {{ bar.value }} short tons CO₂</title>
+                        </rect>
+                        {% if bar.show_label %}
+                            <text
+                                class="chart-axis-label chart-period-label"
+                                x="{{ bar.label_x }}"
+                                y="284"
+                                text-anchor="middle"
+                            >{{ bar.label }}</text>
+                        {% endif %}
+                    {% endfor %}
+                </svg>
+            </div>
+            <p class="chart-unit">CO₂ mass (short tons)</p>
+        {% else %}
+            <p class="chart-empty">No emissions data matches these filters.</p>
+        {% endif %}
+    </section>
 
     {% if total > 0 %}
 
@@ -329,7 +406,7 @@
 
         </p>
 
-        <p>
+        <p class="sort-caption">
             Sort by:
         </p>
 
@@ -651,11 +728,13 @@
 
     {% else %}
 
-        <p>
+        <p class="no-results">
             No results found.
         </p>
 
     {% endif %}
+
+    </main>
 
 </body>
 

@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>epaData</title>
+    <title>Home - epaData</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 
@@ -13,8 +13,10 @@
     <h2>EPA Power Plant Emissions Data</h2>
 
     <nav class="home-tabs" aria-label="Main navigation">
+        <span class="current-page" aria-current="page">Home</span>
         <a href="{{ url_for('main.index') }}">Annual Emissions</a>
         <a href="{{ url_for('main.daily') }}">Daily Data</a>
+        <a href="{{ url_for('main.traci') }}">TRACI 2.2</a>
         <a href="{{ url_for('main.upload') }}">Upload Data</a>
     </nav>
 
@@ -22,9 +24,8 @@
         <p class="home-eyebrow">CS 396 Project</p>
         <h3>Explore emissions data from power plants across the U.S.</h3>
         <p class="home-description">
-            epaData brings annual and daily EPA emissions records into one place.
-            Find facilities, explore emissions over time, and work with the data
-            without having to search through large CSV files by hand.
+            epaData brings annual and daily EPA emissions records and TRACI 2.2
+            substance impact factors into one place.
         </p>
 
         <section class="home-features" aria-label="Available pages">
@@ -35,13 +36,18 @@
             </article>
             <article>
                 <h4>Daily emissions</h4>
-                <p>Review day-level records and narrow results using facility, location, date, fuel, and emissions filters.</p>
+                <p>Filter daily records and visualize CO₂ emissions by day, month, quarter, or year.</p>
                 <a href="{{ url_for('main.daily') }}">Open daily data</a>
             </article>
             <article>
                 <h4>Upload data</h4>
-                <p>Add annual or daily emissions records by uploading a CSV file that matches the required format.</p>
+                <p>Add annual or daily emissions CSV data or import the TRACI 2.2 workbook.</p>
                 <a href="{{ url_for('main.upload') }}">Go to CSV upload</a>
+            </article>
+            <article>
+                <h4>TRACI 2.2</h4>
+                <p>Search substances by name or CAS number and review their characterization factors.</p>
+                <a href="{{ url_for('main.traci') }}">Explore TRACI data</a>
             </article>
         </section>
     </main>

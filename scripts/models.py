@@ -80,6 +80,46 @@ class DailyRecord(Base):
     program_code = Column(String)
 
 
+class TraciRecord(Base):
+    """TRACI 2.2 characterization factors for individual substances."""
+    __tablename__ = "traci_records"
+
+    id = Column(Integer, primary_key=True)
+
+    cas_number = Column(String, index=True)
+    formatted_cas_number = Column(String)
+    substance_name = Column(String, index=True)
+
+    acidification_air = Column(Float)
+    ecotox_air_urban_freshwater = Column(Float)
+    ecotox_air_continental_freshwater = Column(Float)
+    ecotox_freshwater_continental_freshwater = Column(Float)
+    ecotox_seawater_continental_freshwater = Column(Float)
+    ecotox_natural_soil_continental_freshwater = Column(Float)
+    ecotox_agricultural_soil_continental_freshwater = Column(Float)
+    ecotox_flag = Column(String)
+    global_climate_air = Column(Float)
+
+    human_health_urban_air_cancer = Column(Float)
+    human_health_urban_air_non_cancer = Column(Float)
+    human_health_rural_air_cancer = Column(Float)
+    human_health_rural_air_non_cancer = Column(Float)
+    human_health_freshwater_cancer = Column(Float)
+    human_health_freshwater_non_cancer = Column(Float)
+    human_health_seawater_cancer = Column(Float)
+    human_health_seawater_non_cancer = Column(Float)
+    human_health_natural_soil_cancer = Column(Float)
+    human_health_natural_soil_non_cancer = Column(Float)
+    human_health_agricultural_soil_cancer = Column(Float)
+    human_health_agricultural_soil_non_cancer = Column(Float)
+    human_health_cancer_flag = Column(String)
+    human_health_non_cancer_flag = Column(String)
+
+    human_health_particulate_air = Column(Float)
+    ozone_depletion_air = Column(Float)
+    photochemical_oxidation_air = Column(Float)
+
+
 # Create the SQLite database
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

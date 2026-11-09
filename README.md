@@ -69,6 +69,8 @@ Download annual unit-level emissions data for **2025** and daily unit-level emis
 
 These large CSV files are **not included** in the project ZIP. The source and column names must match what the import scripts expect; different export selections may require adjustments.
 
+The TRACI 2.2 workbook is included as `data/traci_2_2.xlsx` and contains substance characterization factors.
+
 ### 5. Import the data
 
 From the project folder, run:
@@ -76,9 +78,10 @@ From the project folder, run:
 ```bash
 python scripts/import_campd.py
 python scripts/import_daily_csv.py
+python scripts/import_traci.py
 ```
 
-The import scripts create the SQLite database (`epa_data.db`) and the `annual_records` and `daily_records` tables as needed. The scripts print import progress or record counts. **Warning:** Rerunning either import script removes the existing records in its respective table before importing the new file.
+The import scripts create the SQLite database (`epa_data.db`) and the `annual_records`, `daily_records`, and `traci_records` tables as needed. The scripts print import progress or record counts. **Warning:** Rerunning an import replaces the existing records in its respective table.
 
 ### 6. Start the application
 
@@ -96,11 +99,13 @@ To stop the local server, press **Ctrl+C** in the terminal.
 
 **Annual Data:** Search annual emissions by facility name, state, year, fuel type, and minimum CO2 emissions. Sort results or download the filtered records as a CSV.
 
-**Daily Data:** Search daily emissions using the available filters, including date-related options. View and compare records or grouped totals.
+**Daily Data:** Search daily emissions using the available filters, including date-related options. View and compare records or grouped totals. The page also graphs filtered CO₂ totals over time using the selected daily, monthly, quarterly, or yearly view.
+
+**TRACI 2.2 Data:** Search the substances by name or CAS number and view their impact characterization factors.
 
 **Description Search:** Type a short search description using recognized keywords, such as `coal Kentucky 2025 high CO2`. The application uses those keywords to fill in search conditions. This is keyword-based, not unrestricted natural-language understanding.
 
-**Upload:** Open the Upload page, select whether the CSV contains annual or daily records, and choose a file. The application checks the file extension and required columns. Use caution with any option that replaces existing data.
+**Upload:** Open the Upload page, select annual or daily emissions for a CSV, or TRACI 2.2 for an `.xlsx` workbook. The application checks the file format and required fields. Use caution with any option that replaces existing data.
 
 **Pagination and Downloads:** Move between result pages and export filtered records using the download controls.
 
@@ -128,6 +133,9 @@ The exact record counts depend on the downloaded EPA datasets. No specific outpu
 | `scripts/models.py` | Defines the database tables and connection |
 | `scripts/import_campd.py` | Imports annual emissions CSV data |
 | `scripts/import_daily_csv.py` | Imports daily emissions CSV data |
+| `scripts/import_traci.py` | Imports TRACI 2.2 workbook data |
+| `scripts/traci_data.py` | Reads and validates TRACI 2.2 workbook records |
+| `app/templates/traci.html` | Searches and displays TRACI substance factors |
 | `scripts/view_database.py` | Helps inspect stored records |
 | `scripts/test_api.py` | Separate script used to test the EPA API |
 | `phase1-ERD.html` | Proposed database design diagram |

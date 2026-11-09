@@ -6,7 +6,8 @@ from io import BytesIO
 import pandas as pd
 import re
 
-from scripts.models import engine, AnnualRecord, DailyRecord
+from scripts.models import engine, AnnualRecord, DailyRecord, TraciRecord
+from scripts.traci_data import TRACI_COLUMNS, read_traci_workbook
 
 
 main = Blueprint("main", __name__)
@@ -14,6 +15,38 @@ main = Blueprint("main", __name__)
 Session = sessionmaker(bind=engine)
 
 PER_PAGE = 100
+
+TRACI_COLUMN_GUIDE = (
+    ("CAS registry number", "Chemical Abstracts Service identifier", ""),
+    ("Formatted CAS number", "Display format of the CAS identifier", ""),
+    ("Substance name", "Name listed in the source workbook", ""),
+    ("Acidification potential", "Air emissions", "kg SO2-eq / kg substance"),
+    ("Ecotoxicity factor", "Urban air emissions to freshwater", "CTUeco / kg substance"),
+    ("Ecotoxicity factor", "Continental air emissions to freshwater", "CTUeco / kg substance"),
+    ("Ecotoxicity factor", "Continental freshwater emissions", "CTUeco / kg substance"),
+    ("Ecotoxicity factor", "Continental seawater emissions", "CTUeco / kg substance"),
+    ("Ecotoxicity factor", "Continental natural-soil emissions", "CTUeco / kg substance"),
+    ("Ecotoxicity factor", "Continental agricultural-soil emissions", "CTUeco / kg substance"),
+    ("Ecotoxicity data flag", "Source confidence category", ""),
+    ("Climate-change potential", "Air emissions", "kg CO2-eq / kg substance"),
+    ("Cancer health factor", "Urban air emissions", "CTUcancer / kg substance"),
+    ("Non-cancer health factor", "Urban air emissions", "CTUnoncancer / kg substance"),
+    ("Cancer health factor", "Continental rural-air emissions", "CTUcancer / kg substance"),
+    ("Non-cancer health factor", "Continental rural-air emissions", "CTUnoncancer / kg substance"),
+    ("Cancer health factor", "Continental freshwater emissions", "CTUcancer / kg substance"),
+    ("Non-cancer health factor", "Continental freshwater emissions", "CTUnoncancer / kg substance"),
+    ("Cancer health factor", "Continental seawater emissions", "CTUcancer / kg substance"),
+    ("Non-cancer health factor", "Continental seawater emissions", "CTUnoncancer / kg substance"),
+    ("Cancer health factor", "Continental natural-soil emissions", "CTUcancer / kg substance"),
+    ("Non-cancer health factor", "Continental natural-soil emissions", "CTUnoncancer / kg substance"),
+    ("Cancer health factor", "Continental agricultural-soil emissions", "CTUcancer / kg substance"),
+    ("Non-cancer health factor", "Continental agricultural-soil emissions", "CTUnoncancer / kg substance"),
+    ("Cancer factor data flag", "Source confidence category", ""),
+    ("Non-cancer factor data flag", "Source confidence category", ""),
+    ("Particulate-matter health potential", "Air emissions", "kg PM2.5-eq / kg substance"),
+    ("Ozone-depletion potential", "Air emissions", "kg CFC-11-eq / kg substance"),
+    ("Photochemical-smog potential", "Air emissions", "kg O3-eq / kg substance"),
+)
 
 
 def int_or_none(value):
@@ -240,6 +273,120 @@ def build_daily_query(
         )
 
     return query
+
+
+def build_daily_chart(session, query, view):
+
+    if view == "month":
+        period_columns = (
+            DailyRecord.year,
+            DailyRecord.month,
+        )
+    elif view == "quarter":
+        period_columns = (
+            DailyRecord.year,
+            DailyRecord.quarter,
+        )
+    elif view == "year":
+        period_columns = (
+            DailyRecord.year,
+        )
+    else:
+        period_columns = (
+            DailyRecord.date,
+        )
+
+    chart_rows = (
+        session.query(
+            *period_columns,
+            func.coalesce(
+                func.sum(DailyRecord.co2_mass),
+                0,
+            ).label("co2_mass"),
+        )
+        .filter(
+            DailyRecord.id.in_(
+                query.with_entities(DailyRecord.id)
+            )
+        )
+        .group_by(*period_columns)
+        .order_by(*period_columns)
+        .all()
+    )
+
+    chart_data = []
+
+    for row in chart_rows:
+        if view == "month":
+            label = f"{row.year}-{row.month:02d}"
+        elif view == "quarter":
+            label = f"{row.year} Q{row.quarter}"
+        elif view == "year":
+            label = str(row.year)
+        else:
+            label = row.date
+
+        chart_data.append(
+            (label, float(row.co2_mass or 0))
+        )
+
+    chart_max = max(
+        (value for _, value in chart_data),
+        default=0,
+    )
+    chart_scale = chart_max or 1
+    chart_width = 960
+    chart_height = 320
+    plot_left = 72
+    plot_right = 20
+    plot_top = 24
+    plot_bottom = 58
+    plot_width = chart_width - plot_left - plot_right
+    plot_height = chart_height - plot_top - plot_bottom
+    step = plot_width / len(chart_data) if chart_data else plot_width
+    bar_width = max(1, min(18, step * 0.72))
+    label_interval = max(1, (len(chart_data) + 7) // 8)
+
+    bars = []
+
+    for index, (label, value) in enumerate(chart_data):
+        bar_height = value / chart_scale * plot_height
+        x = plot_left + index * step + (step - bar_width) / 2
+        bars.append({
+            "x": round(x, 2),
+            "y": round(plot_top + plot_height - bar_height, 2),
+            "width": round(bar_width, 2),
+            "height": round(bar_height, 2),
+            "label": label,
+            "value": f"{value:,.2f}",
+            "show_label": (
+                index % label_interval == 0
+                or index == len(chart_data) - 1
+            ),
+            "label_x": round(x + bar_width / 2, 2),
+        })
+
+    ticks = []
+
+    for index in range(5):
+        value = chart_scale * (4 - index) / 4
+        y = plot_top + plot_height * index / 4
+        ticks.append({
+            "y": round(y, 2),
+            "value": f"{value:,.0f}",
+        })
+
+    return {
+        "bars": bars,
+        "ticks": ticks,
+        "max": chart_max,
+        "period": {
+            "month": "month",
+            "quarter": "quarter",
+            "year": "year",
+        }.get(view, "day"),
+        "height": chart_height,
+    }
 
 
 @main.route("/")
@@ -559,6 +706,12 @@ def daily():
             day=day,
             fuel=fuel,
             co2_min=co2_min,
+        )
+
+        emissions_chart = build_daily_chart(
+            session=session,
+            query=query,
+            view=view,
         )
 
         if view == "month":
@@ -1192,10 +1345,63 @@ def daily():
             available_fuels=available_fuels,
             sort=sort,
             direction=direction,
+            emissions_chart=emissions_chart,
         )
 
     finally:
 
+        session.close()
+
+
+@main.route("/traci")
+def traci():
+    session = Session()
+
+    try:
+        search = request.args.get("search", "").strip()
+        page = max(1, int_or_none(request.args.get("page")) or 1)
+
+        query = session.query(TraciRecord)
+        if search:
+            pattern = f"%{search}%"
+            query = query.filter(
+                (TraciRecord.substance_name.ilike(pattern))
+                | (TraciRecord.cas_number.ilike(pattern))
+                | (TraciRecord.formatted_cas_number.ilike(pattern))
+            )
+
+        total = query.count()
+        total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
+        page = min(page, total_pages)
+        rows = (
+            query.order_by(TraciRecord.substance_name)
+            .offset((page - 1) * PER_PAGE)
+            .limit(PER_PAGE)
+            .all()
+        )
+
+        columns = [(attribute, label) for attribute, label, _ in TRACI_COLUMNS]
+        return render_template(
+            "traci.html",
+            rows=rows,
+            columns=columns,
+            headers=[
+                {
+                    "attribute": attribute,
+                    "source_label": label,
+                    "title": guide[0],
+                    "context": guide[1],
+                    "unit": guide[2],
+                }
+                for (attribute, label), guide in zip(columns, TRACI_COLUMN_GUIDE)
+            ],
+            search=search,
+            total=total,
+            total_display=f"{total:,}",
+            page=page,
+            total_pages=total_pages,
+        )
+    finally:
         session.close()
 
 
@@ -1224,23 +1430,47 @@ def upload():
             )
 
             mode = request.form.get(
-                "mode",
+                "import_mode",
                 "append"
             )
 
-            if not file:
+            if data_type not in {"annual", "daily", "traci"}:
+
+                error = "Please select a supported data type."
+
+            elif not file:
 
                 error = (
-                    "Please select a CSV file."
+                    "Please select a data file."
                 )
 
-            elif not file.filename.lower().endswith(
-                ".csv"
-            ):
+            elif data_type == "traci":
 
-                error = (
-                    "Only CSV files are supported."
-                )
+                if not (file.filename or "").lower().endswith(".xlsx"):
+
+                    error = "TRACI data must be uploaded as an .xlsx workbook."
+
+                else:
+
+                    try:
+                        records = read_traci_workbook(file.stream)
+
+                        if mode == "replace":
+                            session.query(TraciRecord).delete()
+
+                        session.bulk_insert_mappings(TraciRecord, records)
+                        session.commit()
+                        message = (
+                            f"Successfully imported {len(records):,} TRACI "
+                            "record(s). View them on the TRACI 2.2 page."
+                        )
+                    except Exception as exc:
+                        session.rollback()
+                        error = f"Import failed: {exc}"
+
+            elif not (file.filename or "").lower().endswith(".csv"):
+
+                error = "Annual and daily data must be uploaded as CSV files."
 
             else:
 
@@ -2021,4 +2251,3 @@ def download_daily():
     finally:
 
         session.close()
-
