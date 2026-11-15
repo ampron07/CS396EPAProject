@@ -90,13 +90,12 @@
                                 </span>
                                 <span class="traci-bar-value">{{ item.value_display }}</span>
                             </div>
-                            <div
-                                class="traci-bar-track"
-                                role="img"
+                            <progress
+                                class="traci-bar-fill"
+                                value="{{ item.bar_width }}"
+                                max="100"
                                 aria-label="Rank {{ item.rank }}: {{ item.substance_name }}, factor value {{ item.value_display }}"
-                            >
-                                <span class="traci-bar-fill" style="width: {{ item.bar_width }}%"></span>
-                            </div>
+                            >{{ item.bar_width }}%</progress>
                         </li>
                     {% endfor %}
                 </ol>

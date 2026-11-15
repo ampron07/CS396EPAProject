@@ -578,20 +578,30 @@ h2 + p a:hover {
     white-space: nowrap;
 }
 
-.traci-bar-track {
+.traci-bar-fill {
+    display: block;
+    appearance: none;
+    -webkit-appearance: none;
+    width: calc(100% - 34px);
     height: 10px;
     margin-left: 34px;
-    overflow: hidden;
     background: #edf2f5;
     border-radius: 999px;
 }
 
-.traci-bar-fill {
-    display: block;
-    min-width: 2px;
-    height: 100%;
+.traci-bar-fill::-webkit-progress-bar {
+    background: #edf2f5;
+    border-radius: 999px;
+}
+
+.traci-bar-fill::-webkit-progress-value {
     background: linear-gradient(90deg, #3579a8, #64a2c6);
     border-radius: inherit;
+}
+
+.traci-bar-fill::-moz-progress-bar {
+    background: linear-gradient(90deg, #3579a8, #64a2c6);
+    border-radius: 999px;
 }
 
 .traci-chart-empty {
