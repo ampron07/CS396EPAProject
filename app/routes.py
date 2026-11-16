@@ -2316,3 +2316,51 @@ def download_daily():
     finally:
 
         session.close()
+
+
+@main.route('/predictions')
+def predictions():
+    """Historical-date trend projection with transparent scenario sensitivity."""
+    from app.predictions import make_forecast
+
+    horizon = int_or_none(request.args.get('horizon'))
+    if horizon not in (7, 30, 90):
+        horizon = 30
+    facility_id = int_or_none(request.args.get('facility_id'))
+    session = Session()
+    try:
+        facilities = (
+            session.query(DailyRecord.facility_id, func.max(DailyRecord.facility_name))
+            .filter(DailyRecord.facility_id.isnot(None))
+            .filter(DailyRecord.date.isnot(None))
+            .filter(DailyRecord.co2_mass.isnot(None))
+            .group_by(DailyRecord.facility_id)
+            .order_by(func.max(DailyRecord.facility_name))
+            .all()
+        )
+        ids = {item[0] for item in facilities}
+        if facility_id not in ids:
+            facility_id = facilities[0][0] if facilities else None
+        result = None
+        error = None
+        if facility_id is None:
+            error = 'No daily emissions records found. Import a CAMPD daily CSV to see predictions.'
+        else:
+            daily_rows = (
+                session.query(DailyRecord.date, func.sum(DailyRecord.co2_mass))
+                .filter(DailyRecord.facility_id == facility_id)
+                .filter(DailyRecord.date.isnot(None))
+                .filter(DailyRecord.co2_mass.isnot(None))
+                .group_by(DailyRecord.date)
+                .order_by(DailyRecord.date)
+                .all()
+            )
+            try:
+                result = make_forecast(daily_rows, horizon)
+            except ValueError as exc:
+                error = str(exc)
+        return render_template('predictions.html', facilities=facilities,
+                               selected_facility=facility_id, horizon=horizon,
+                               result=result, error=error)
+    finally:
+        session.close()

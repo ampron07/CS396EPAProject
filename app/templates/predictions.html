@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>CO₂ Predictions - epaData</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='predictions.css') }}">
+</head>
+<body>
+  <h1>epaData</h1>
+  <h2>CO₂ Emissions Predictions</h2>
+  <nav class="page-nav" aria-label="Main navigation">
+    <a href="{{ url_for('main.home') }}">Home</a>
+    <a href="{{ url_for('main.index') }}">Annual Emissions</a>
+    <a href="{{ url_for('main.daily') }}">Daily Data</a>
+    <a href="{{ url_for('main.traci') }}">TRACI 2.2</a>
+    <a href="{{ url_for('main.upload') }}">Upload Data</a>
+    <span class="current-page" aria-current="page">Predictions</span>
+  </nav>
+  <main class="page-content predictions-page">
+    <section class="page-intro">
+      <p class="page-eyebrow">EPA DATA EXPLORER</p>
+      <h3>CO₂ forecast &amp; sensitivity explorer</h3>
+      <p>Explore a facility's projected daily emissions, verify model accuracy on unseen dates, and try illustrative generation scenarios.</p>
+    </section>
+    <form class="prediction-filters" method="get" action="{{ url_for('main.predictions') }}">
+      <label for="facility_id">Facility</label>
+      <select name="facility_id" id="facility_id">
+        {% for id, name in facilities %}
+          <option value="{{ id }}" {% if id == selected_facility %}selected{% endif %}>{{ name or 'Unknown facility' }} ({{ id }})</option>
+        {% endfor %}
+      </select>
+      <label for="horizon">Forecast horizon</label>
+      <select name="horizon" id="horizon">
+        {% for d in (7, 30, 90) %}
+          <option value="{{ d }}" {% if d == horizon %}selected{% endif %}>{{ d }} days</option>
+        {% endfor %}
+      </select>
+      <button type="submit">Generate forecast</button>
+    </form>
+    {% if error %}
+      <section class="prediction-panel" role="status"><h3>More data needed</h3><p>{{ error }}</p>
+      <p>For reliable results, import at least 45 dated observations for a facility, preferably several years of daily CAMPD data.</p></section>
+    {% endif %}
+    {% if result %}
+      <section class="prediction-metrics" aria-label="Forecast evaluation metrics">
+        <div><small>MAE · held-out dates</small><strong>{{ '{:,.2f}'.format(result.mae) }}</strong><span>CO₂ short tons / day</span></div>
+        <div><small>RMSE · held-out dates</small><strong>{{ '{:,.2f}'.format(result.rmse) }}</strong><span>CO₂ short tons / day</span></div>
+        <div><small>Mean baseline MAE</small><strong>{{ '{:,.2f}'.format(result.baseline_mae) }}</strong><span>CO₂ short tons / day</span></div>
+        <div><small>Daily observations</small><strong>{{ result.observations }}</strong><span>{{ result.coverage }}% calendar coverage</span></div>
+      </section>
+      <section class="prediction-panel">
+        <h3>Observed and projected daily CO₂</h3>
+        <p>Solid line: observed emissions. Dashed line: linear regression projections. All values are CO₂ short tons per day.</p>
+        <div class="prediction-chart-wrap"><canvas id="forecast-chart" role="img" aria-label="Historical daily CO2 emissions and projected daily emissions"></canvas></div>
+      </section>
+      <section class="prediction-panel">
+        <h3>Sensitivity scenario: electricity generation</h3>
+        <p>Assume emissions scale proportionally with generation, <strong>holding emissions intensity constant</strong>. This is a what-if assumption, not a causal estimate learned by the forecast model.</p>
+        <label for="generation-change">Generation adjustment: <strong id="change-label">0%</strong></label>
+        <input id="generation-change" type="range" min="-30" max="30" step="5" value="0">
+        <div class="scenario-cards">
+          <div><small>Baseline forecast average</small><strong id="baseline-output"></strong><span>CO₂ short tons / day</span></div>
+          <div><small>Adjusted forecast average</small><strong id="adjusted-output"></strong><span>CO₂ short tons / day</span></div>
+          <div><small>Change vs baseline</small><strong id="difference-output"></strong><span>CO₂ short tons / day</span></div>
+        </div>
+        <div class="prediction-chart-wrap"><canvas id="scenario-chart" role="img" aria-label="Baseline versus adjusted future daily CO2 emissions"></canvas></div>
+      </section>
+      <section class="prediction-panel">
+        <h3>Holdout performance: actual versus predicted</h3>
+        <p>The oldest {{ result.train_days }} observed days train the model; the newest {{ result.test_days }} days are reserved for testing. The model is then refitted to the full history for forecasting.</p>
+        <div class="prediction-chart-wrap"><canvas id="validation-chart" role="img" aria-label="Measured and forecast CO2 emissions on held-out dates"></canvas></div>
+      </section>
+      <section class="prediction-panel">
+        <h3>How to interpret this</h3>
+        <p>Model: linear regression on calendar trend and day of week. Data: {{ result.start_date }} through {{ result.last_date }}. Missing observation dates are excluded rather than treated as zero. Results are projections, not official EPA forecasts or prediction intervals.</p>
+        {% for note in result.notes %}<p class="prediction-warning">{{ note }}</p>{% endfor %}
+        <p>Weather, fuel changes, outages and future power demand are not included. Longer forecasting horizons may be much less reliable. Compare MAE with the mean baseline before relying on the trend.</p>
+      </section>
+      <script id="prediction-data" type="application/json">{{ result|tojson }}</script>
+      <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+      <script src="{{ url_for('static', filename='predictions.js') }}" defer></script>
+    {% endif %}
+  </main>
+</body>
+</html>

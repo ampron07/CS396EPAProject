@@ -1,0 +1,18 @@
+.predictions-page {max-width: 1100px;}
+.prediction-filters {display: flex; align-items: end; flex-wrap: wrap; gap: 12px; margin: 16px 0 24px; padding: 16px; background: #fff; border: 1px solid #dae4eb; border-radius: 10px;}
+.prediction-filters label {font-weight: 600; font-size: 14px;}
+.prediction-filters select {min-height: 40px; padding: 7px; border: 1px solid #c9d7e3; border-radius: 6px; max-width: 100%;}
+.prediction-filters #facility_id {flex: 1 1 220px;}
+.prediction-filters button {padding: 11px 18px; background: #245b82; border: none; border-radius: 6px; color: #fff; cursor: pointer;}
+.prediction-panel {background: #fff; padding: 22px; border: 1px solid #dae4eb; border-radius: 10px; margin-bottom: 18px;}
+.prediction-panel h3 {color: #245b82; margin: 0 0 8px;}
+.prediction-panel p {line-height: 1.55; color: #465866;}
+.prediction-metrics,.scenario-cards {display: grid; grid-template-columns: repeat(auto-fit, minmax(155px,1fr)); gap: 12px; margin: 18px 0;}
+.prediction-metrics > div,.scenario-cards > div {padding: 16px; border: 1px solid #dce7ed; background: #f6f9fc; border-radius: 8px; display: flex; flex-direction: column; gap: 6px;}
+.prediction-metrics small,.scenario-cards small {font-size: 12px; color: #5f6d78;}
+.prediction-metrics strong,.scenario-cards strong {font-size: 24px; color: #245b82; overflow-wrap: anywhere;}
+.prediction-metrics span,.scenario-cards span {font-size: 12px; color: #5f6d78;}
+.prediction-chart-wrap {position: relative; height: 340px; width: 100%; margin-top: 14px;}
+#generation-change {display: block; width: min(100%, 550px); margin: 14px 0; accent-color: #245b82;}
+.prediction-warning {border-left: 3px solid #d97706; padding: 10px; background: #fff7ed;}
+@media (max-width: 600px) {.prediction-panel {padding: 14px;} .prediction-chart-wrap {height: 260px;}}
