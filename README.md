@@ -147,3 +147,25 @@ U.S. Environmental Protection Agency (EPA), **Clean Air Markets Program Data (CA
 ## Acknowledgments
 
 Developed for CS 396 at Western Kentucky University. The project uses publicly available EPA emissions data and open-source Python libraries.
+
+## CO₂ prediction dashboard (new)
+
+Open **Predictions** in the navigation bar or visit `/predictions`. Choose a facility and a
+7-, 30-, or 90-day forecast horizon. The feature requires imported daily CAMPD
+records, with at least 45 distinct dated, nonnegative CO₂ observations for the
+chosen facility and at least 75% coverage of its calendar span. More historical
+records improve confidence; several years are recommended for seasonal behavior.
+
+The model uses scikit-learn linear regression with calendar time and day-of-week
+indicators. It holds out the most recent 20% of dates to report MAE and RMSE,
+plus a constant historical-mean baseline MAE. After evaluation, it refits on all
+available dates for future projections. Dates without records are **not** treated
+as zero-emission days. Chart.js is loaded from a CDN; internet access is needed
+for the graphs. The page remains informative if the database is empty.
+
+The generation slider applies an explicitly hypothetical *constant emissions
+intensity* scaling to each forecast; it is **not** a causal, learned generation
+coefficient. Results are illustrative estimates, not official EPA forecasts.
+
+Install updated dependencies with `python -m pip install -r requirements.txt`.
+The requirements file has been converted from UTF-16 to UTF-8 for standard pip.
